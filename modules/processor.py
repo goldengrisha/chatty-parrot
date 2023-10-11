@@ -24,9 +24,10 @@ form_router = Router()
 
 
 class Processor(StatesGroup):
-    name = State()
-    like_bots = State()
-    language = State()
+    chat_bot_type = State()
+    is_with_memory = State()
+    is_with_context = State()
+    is_with_internet_access = State()
 
     async def run(self):
         bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
@@ -37,11 +38,84 @@ class Processor(StatesGroup):
 
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
-    await state.set_state(Processor.name)
+    await state.set_state(Processor.chat_bot_type)
     await message.answer(
-        "Hi there! What's your name?",
-        reply_markup=ReplyKeyboardRemove(),
+        f"Please select chatbot type.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="GPT-3.5"),
+                    KeyboardButton(text="GPT-4"),
+                ]
+            ],
+            resize_keyboard=True,
+        ),
     )
+
+
+@form_router.message(Processor.chat_bot_type, F.text.in_({"GPT-3.5", "GPT-4"}))
+async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
+    await state.update_data(chat_bot_type=message.text)
+    await state.set_state(Processor.is_with_memory)
+    await message.answer(
+        f"Would you like to use memory?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Yes"),
+                    KeyboardButton(text="No"),
+                ]
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(Processor.is_with_memory, F.text.in_({"Yes", "No"}))
+async def process_memory(message: Message, state: FSMContext) -> None:
+    await state.update_data(is_with_memory=message.text)
+    await state.set_state(Processor.is_with_context)
+    await message.answer(
+        f"Would you like to use context or full chat gpt?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Yes"),
+                    KeyboardButton(text="No"),
+                ]
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(Processor.is_with_context, F.text.in_({"Yes", "No"}))
+async def process_context(message: Message, state: FSMContext) -> None:
+    await state.update_data(is_with_context=message.text)
+    await state.set_state(Processor.is_with_internet_access)
+    await message.answer(
+        f"Would you like to use context or full chat gpt?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Yes"),
+                    KeyboardButton(text="No"),
+                ]
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(
+    Processor.is_with_internet_access,
+    F.text.in_({"Yes", "No"}),
+)
+async def process_internet_access(message: Message, state: FSMContext) -> None:
+    data = await state.update_data(is_with_internet_access=message.text)
+    await state.clear()
+
+    await show_summary(message=message, data=data)
 
 
 @form_router.message(Command("cancel"))
@@ -62,73 +136,39 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     )
 
 
-@form_router.message(Processor.name)
-async def process_name(message: Message, state: FSMContext) -> None:
-    await state.update_data(name=message.text)
-    await state.set_state(Processor.like_bots)
-    await message.answer(
-        f"Nice to meet you, {html.quote(message.text)}!\nDid you like to write bots?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Yes"),
-                    KeyboardButton(text="No"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
-    )
-
-
-@form_router.message(Processor.like_bots, F.text.casefold() == "no")
-async def process_dont_like_write_bots(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    await state.clear()
-    await message.answer(
-        "Not bad not terrible.\nSee you soon.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    await show_summary(message=message, data=data, positive=False)
-
-
-@form_router.message(Processor.like_bots, F.text.casefold() == "yes")
-async def process_like_write_bots(message: Message, state: FSMContext) -> None:
-    await state.set_state(Processor.language)
-
-    await message.reply(
-        "Cool! I'm too!\nWhat programming language did you use for it?",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
-
-@form_router.message(Processor.like_bots)
+@form_router.message(Processor.chat_bot_type)
 async def process_unknown_write_bots(message: Message) -> None:
     await message.reply("I don't understand you :(")
 
 
-@form_router.message(Processor.language)
-async def process_language(message: Message, state: FSMContext) -> None:
-    data = await state.update_data(language=message.text)
-    await state.clear()
+@form_router.message(Processor.is_with_memory)
+async def process_unknown_write_bots(message: Message) -> None:
+    await message.reply("I don't understand you :(")
 
-    if message.text.casefold() == "python":
-        await message.reply(
-            "Python, you say? That's the language that makes my circuits light up! 😉"
-        )
 
-    await show_summary(message=message, data=data)
+@form_router.message(Processor.is_with_context)
+async def process_unknown_write_bots(message: Message) -> None:
+    await message.reply("I don't understand you :(")
+
+
+@form_router.message(Processor.is_with_internet_access)
+async def process_unknown_write_bots(message: Message) -> None:
+    await message.reply("I don't understand you :(")
 
 
 async def show_summary(
     message: Message, data: Dict[str, Any], positive: bool = True
 ) -> None:
-    name = data["name"]
-    language = data.get("language", "<something unexpected>")
-    text = f"I'll keep in mind that, {html.quote(name)}, "
-    text += (
-        f"you like to write bots with {html.quote(language)}."
-        if positive
-        else "you don't like to write bots, so sad..."
-    )
-    await message.answer(text=text, reply_markup=ReplyKeyboardRemove())
+    chat_bot_type = data.get("chat_bot_typ", "GPT-3.5")
+    is_with_memory = data.get("is_with_memory", "Yes")
+    is_with_context = data.get("is_with_context", "Yes")
+    is_with_internet_access = data.get("is_with_internet_access", "Yes")
 
+    text = f"""
+    Hey your bot has been created! 
+    Chatbot type: {chat_bot_type} 
+    Memory: {is_with_memory} 
+    Context: {is_with_context}  
+    Internet access: {is_with_internet_access}"""
+
+    await message.answer(text=text, reply_markup=ReplyKeyboardRemove())
