@@ -165,7 +165,7 @@ async def show_summary(
     is_with_internet_access = data.get("is_with_internet_access", "Yes")
 
     text = f"""
-    Hey your bot has been created! 
+    Hey, your bot has been created! 
     Chatbot type: {chat_bot_type} 
     Memory: {is_with_memory} 
     Context: {is_with_context}  
