@@ -91,7 +91,7 @@ async def process_memory(message: Message, state: FSMContext) -> None:
     await state.update_data(is_with_memory=message.text)
     await state.set_state(Processor.is_with_context)
     await message.answer(
-        f"Would you like to use context or full chat gpt?",
+        f"Would you like to use context instead of full chat gpt?",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -109,7 +109,7 @@ async def process_context(message: Message, state: FSMContext) -> None:
     await state.update_data(is_with_context=message.text)
     await state.set_state(Processor.is_with_internet_access)
     await message.answer(
-        f"Would you like to use context or full chat gpt?",
+        f"Would you like to use internet searching?",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -153,22 +153,22 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.chat_bot_model)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Choose the openai model firstly:")
 
 
 @form_router.message(Processor.is_with_memory)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("You need to choose whether to use memory in the bot:")
 
 
 @form_router.message(Processor.is_with_context)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Choose using context instead of full chat gpt:")
 
 
 @form_router.message(Processor.is_with_internet_access)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Do you want to use access to the internet?")
 
 
 async def show_summary(
@@ -208,11 +208,12 @@ async def command_upload_new_pdf(message: Message) -> None:
     """
     Allow user to upload new PDF file
     """
-    # here some logic
-    await message.answer(
-        "New PDF file has been uploaded.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    await message.answer("Please choose the PDF file you want to upload.")
+
+    # if message.document.mime_type == 'application/pdf':   not ended
+    #     await message.answer("New PDF file has been uploaded.")
+
+    # here must be process_pdf(update)
 
 
 @form_router.message(Command("sendURL"))
@@ -225,3 +226,5 @@ async def command_send_new_url(message: Message) -> None:
         "New URL has been sent.",
         reply_markup=ReplyKeyboardRemove(),
     )
+
+    # here must be process_url(update)
