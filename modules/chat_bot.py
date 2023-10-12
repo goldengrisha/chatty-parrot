@@ -1,3 +1,4 @@
+import os
 import langchain
 
 from typing import List, Any
@@ -10,13 +11,14 @@ from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferMemory, ConversationSummaryBufferMemory
 from langchain.schema import SystemMessage, HumanMessage
 from langchain.prompts.chat import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
 )
-from langchain.tools import Tool, DuckDuckGoSearchRun
+from langchain.utilities import GoogleSearchAPIWrapper
+from langchain.tools import Tool
 from langchain.agents.types import AgentType
 from langchain.agents import ZeroShotAgent, AgentExecutor, initialize_agent
 from langchain.chains import LLMChain
@@ -96,27 +98,71 @@ class ChatBot:
         retriever = db.as_retriever(
             search_kwargs={"score_threshold": 0.8}, kwargs={"top_k": 2}
         )
+        prompt_messages = None
+        if is_with_memory:
+            prompt_messages = [
+                SystemMessage(
+                    content=(
+                        "You are a sales person."
+                        "You should help clients with their concerns about their choices and provide helpful solutions."
+                        "You can ask questions to help you understand the problem."
+                        "You should only talk within the context of problem."
+                        if is_with_context
+                        else ""
+                        "Your main goal is getting contact info, then starting a trial."
+                        "If you are unsure of how to help, you can suggest the client leave the contact like email or phone."
+                    )
+                ),
+                HumanMessagePromptTemplate.from_template(
+                    f"Answer the question based {'only' if is_with_context else ''} on the following context or history."
+                ),
+                HumanMessagePromptTemplate.from_template("History: {history}."),
+                HumanMessagePromptTemplate.from_template("Context: {context}."),
+                HumanMessagePromptTemplate.from_template("Question: {question}."),
+            ]
+        else:
+            prompt_messages = [
+                SystemMessage(
+                    content=(
+                        "You are a sales person."
+                        "You should help clients with their concerns about their choices and provide helpful solutions."
+                        "You can ask questions to help you understand the problem."
+                        "You should only talk within the context of problem."
+                        if is_with_context
+                        else ""
+                        "Your main goal is getting contact info, then starting a trial."
+                        "If you are unsure of how to help, you can suggest the client leave the contact like email or phone."
+                    )
+                ),
+                HumanMessagePromptTemplate.from_template(
+                    f"Answer the question based {'only' if is_with_context else ''} on the following context."
+                ),
+                HumanMessagePromptTemplate.from_template("Context: {context}."),
+                HumanMessagePromptTemplate.from_template("Question: {question}."),
+            ]
 
-        prompt_messages = [
-            SystemMessage(
-                content=(
-                    "You are a sales person."
-                    "You should help clients with their concerns about their choices and provide helpful solutions."
-                    "You can ask questions to help you understand the problem."
-                    "You should only talk within the context of problem."
-                    "Your main goal is getting contact info, then starting a trial."
-                    "If you are unsure of how to help, you can suggest the client leave the contact like email or phone."
-                )
-            ),
-            HumanMessagePromptTemplate.from_template(
-                "Answer the question based only on the following context or history."
-            ),
-            HumanMessagePromptTemplate.from_template("Context: {context}."),
-            HumanMessagePromptTemplate.from_template("Question: {question}."),
-        ]
+        input_variables = (
+            ["context", "question", "history"]
+            if is_with_memory
+            else ["context", "question"]
+        )
 
         prompt = ChatPromptTemplate(
-            messages=prompt_messages, input_variables=["context", "question"]
+            messages=prompt_messages, input_variables=input_variables
+        )
+
+        chain_type_kwargs = (
+            {
+                "prompt": prompt,
+                "memory": ConversationSummaryBufferMemory(
+                    llm=model,
+                    memory_key="history",
+                    input_key="question",
+                    max_token_limit=1000,
+                ),
+            }
+            if is_with_memory
+            else {"prompt": prompt}
         )
 
         retrieval_qa = RetrievalQA.from_chain_type(
@@ -124,7 +170,7 @@ class ChatBot:
             chain_type="stuff",
             retriever=retriever,
             verbose=True,
-            chain_type_kwargs={"prompt": prompt},
+            chain_type_kwargs=chain_type_kwargs,
         )
 
         return retrieval_qa
@@ -135,7 +181,7 @@ class ChatBot:
         model: ChatOpenAI,
         is_with_memory: bool,
     ) -> AgentExecutor:
-        search = DuckDuckGoSearchRun()
+        search = GoogleSearchAPIWrapper()
         tools = [
             Tool(
                 name="default",
@@ -201,12 +247,13 @@ class ChatBot:
 
 # chat_bot = ChatBot(
 #     chat_bot_type="gpt-4",
-#     is_with_memory=True,
+#     is_with_memory=False,
 #     is_with_context=True,
-#     is_with_internet_access=False,
+#     is_with_internet_access=True,
 #     is_file=True,
 #     path="./How_Reply_Generated_400k_Case_Study.pdf",
 # )
 
+# print(chat_bot.query_executor.invoke("what is CEO of Google?"))
 # print(chat_bot.query_executor.invoke("Can you compare open and reply rates?"))
 # print(chat_bot.query_executor.invoke("What was the last question about?"))
