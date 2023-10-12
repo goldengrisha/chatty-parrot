@@ -8,7 +8,7 @@ load_dotenv()
 class Settings:
     @staticmethod
     def get_ai_key(alias: str) -> str:
-        alias_map = {"3.5": "OPENAI_API_3_5_KEY", "4": "OPENAI_API_4_KEY"}
+        alias_map = {"GPT-3.5": "OPENAI_API_3_5_KEY", "GPT-4": "OPENAI_API_4_KEY"}
         return os.getenv(alias_map.get(alias, ""), "")
 
     @staticmethod
