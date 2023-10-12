@@ -5,11 +5,16 @@ import sys
 from os import getenv
 from typing import Any, Dict
 
+import aiofiles
+
 from aiogram import Bot, Dispatcher, F, Router, html
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from urllib.parse import urlparse
+
+# from aiogram.dispatcher.filters.builtin import ContentTypesFilter
 from aiogram.types import (
     KeyboardButton,
     Message,
@@ -19,8 +24,25 @@ from aiogram.types import (
 
 from modules.settings import Settings
 
+main_menu_keyboard = (
+    ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Upload file or URL"),
+            ],
+            [
+                KeyboardButton(text="Reset"),
+                KeyboardButton(text="Show status"),
+            ],
+        ],
+        resize_keyboard=True,
+    ),
+)
+
 
 form_router = Router()
+bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
+dp = Dispatcher()
 
 
 class Processor(StatesGroup):
@@ -28,10 +50,14 @@ class Processor(StatesGroup):
     is_with_memory = State()
     is_with_context = State()
     is_with_internet_access = State()
+    regular_usage = State()
+    change_context = State()
+    waiting_for_file = State()
+    waiting_for_url = State()
 
     async def run(self):
-        bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
-        dp = Dispatcher()
+        global bot
+        global dp
         dp.include_router(form_router)
         await dp.start_polling(bot)
 
@@ -94,7 +120,7 @@ async def process_context(message: Message, state: FSMContext) -> None:
     await state.update_data(is_with_context=message.text)
     await state.set_state(Processor.is_with_internet_access)
     await message.answer(
-        f"Would you like to use context or full chat gpt?",
+        f"Would you like to use internet access?",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -113,9 +139,164 @@ async def process_context(message: Message, state: FSMContext) -> None:
 )
 async def process_internet_access(message: Message, state: FSMContext) -> None:
     data = await state.update_data(is_with_internet_access=message.text)
-    await state.clear()
+    await state.set_state(Processor.regular_usage)
 
-    await show_summary(message=message, data=data)
+    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
+    await message.answer(
+        "You can use your bot now.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Upload file or URL"),
+                ],
+                [
+                    KeyboardButton(text="Reset"),
+                    KeyboardButton(text="Show status"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(Processor.regular_usage, F.text.in_({"Show status"}))
+async def process_regular_usage_show_status(
+    message: Message, state: FSMContext
+) -> None:
+    await show_summary(
+        message=message, data=await state.get_data(), keyboard=ReplyKeyboardMarkup(
+                keyboard=[
+                    [
+                        KeyboardButton(text="Upload file or URL"),
+                    ],
+                    [
+                        KeyboardButton(text="Reset"),
+                        KeyboardButton(text="Show status"),
+                    ],
+                ],
+                resize_keyboard=True,
+            ),
+    )
+
+
+@form_router.message(Processor.regular_usage, F.text.in_({"Reset"}))
+async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    await state.set_data({})
+    await state.set_state(Processor.chat_bot_type)
+    await message.answer("Let's configure your bot again.")
+    await message.answer(
+        f"Please select chatbot type.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="GPT-3.5"),
+                    KeyboardButton(text="GPT-4"),
+                ]
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(Processor.regular_usage, F.text.in_({"Upload file or URL"}))
+async def process_regular_usage_document(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.change_context)
+    await message.answer(
+        f"Would you like upload file or url?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="File"),
+                    KeyboardButton(text="Url"),
+                ]
+            ]
+        ),
+    )
+
+
+@form_router.message(Processor.change_context, F.text.in_({"File"}))
+async def process_change_context_document(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.waiting_for_file)
+    await message.answer("Please, upload file.", reply_markup=ReplyKeyboardRemove())
+    
+
+@form_router.message(Processor.change_context, F.text.in_({"Url"}))
+async def process_change_context_document(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.waiting_for_url)
+    await message.answer("Please, paste url here.", reply_markup=ReplyKeyboardRemove())
+    
+    
+
+@form_router.message(Processor.waiting_for_url)
+async def process_waiting_for_url(message: Message, state: FSMContext) -> None:
+    url = message.text
+    
+    # Check if it's a valid URL
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme or not parsed_url.netloc:
+        await message.answer("Please paste a valid URL.")
+        return
+    await state.update_data(path=message.text, is_file=False)
+    await state.set_state(Processor.regular_usage)
+    await message.answer(
+        f"Your url has been uploaded.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Upload file or URL"),
+                ],
+                [
+                    KeyboardButton(text="Reset"),
+                    KeyboardButton(text="Show status"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+    )
+    
+    
+@form_router.message(Processor.waiting_for_url)
+def process_invalid_url(message: Message, state: FSMContext) -> None:
+    message.answer("Invalid url. Please paste here valid URL.")
+
+@form_router.message(Processor.waiting_for_file, F.document)
+async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
+    try:
+        # Download the document
+        file_id = message.document.file_id
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        download_file = await bot.download_file(file_path)
+        async with aiofiles.open(
+            f"downloads/{message.document.file_name}", mode="wb"
+        ) as file:
+            await file.write(download_file.read())
+        await state.update_data(
+            path=f"downloads/{message.document.file_name}", is_file=True
+        )
+        await message.answer(
+            f"Your file {message.document.file_name} has been uploaded.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [
+                        KeyboardButton(text="Upload file or URL"),
+                    ],
+                    [
+                        KeyboardButton(text="Reset"),
+                        KeyboardButton(text="Show status"),
+                    ],
+                ],
+                resize_keyboard=True,
+            ),
+        )
+        await state.set_state(Processor.regular_usage)
+
+    except Exception as e:
+        await message.answer(f"An error occurred: {e}")
+        
+@form_router.message(Processor.waiting_for_file)
+def process_invalid_file(message: Message, state: FSMContext) -> None:
+    message.answer("Please upload a file.")
 
 
 @form_router.message(Command("cancel"))
@@ -133,6 +314,14 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     await message.answer(
         "Cancelled.",
         reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@form_router.message(Processor.regular_usage)
+async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    await message.answer(
+        f"Your path is {data.get('path', 'None')}.\nIs this file: {data.get('is_file', 'None')}"
     )
 
 
@@ -157,12 +346,15 @@ async def process_unknown_write_bots(message: Message) -> None:
 
 
 async def show_summary(
-    message: Message, data: Dict[str, Any], positive: bool = True
+    message: Message,
+    data: Dict[str, Any],
+    keyboard,
+    positive: bool = True,
 ) -> None:
-    chat_bot_type = data.get("chat_bot_typ", "GPT-3.5")
-    is_with_memory = data.get("is_with_memory", "Yes")
-    is_with_context = data.get("is_with_context", "Yes")
-    is_with_internet_access = data.get("is_with_internet_access", "Yes")
+    chat_bot_type = data.get("chat_bot_type", "None")
+    is_with_memory = data.get("is_with_memory", "None")
+    is_with_context = data.get("is_with_context", "None")
+    is_with_internet_access = data.get("is_with_internet_access", "None")
 
     ai_key = Settings.get_ai_key(chat_bot_type)
 
@@ -173,4 +365,4 @@ async def show_summary(
     Context: {is_with_context}  
     Internet access: {is_with_internet_access}"""
 
-    await message.answer(text=text, reply_markup=ReplyKeyboardRemove())
+    await message.answer(text=text, reply_markup=keyboard)
