@@ -29,7 +29,9 @@ load_dotenv()
 
 
 class ChatBot:
-    def __init__(
+    def __init__(self) -> None:
+        self.initialized = False
+    def initialize(
         self,
         chat_bot_type: str,
         is_with_memory: bool,
@@ -38,6 +40,8 @@ class ChatBot:
         is_file: bool,
         path: str,
     ):
+        self.path = path
+        self.is_file = is_file
         model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
         embeddings = self.get_embeddings()
         documents = self.load_pdf(path) if is_file else self.load_url(path)
@@ -50,6 +54,7 @@ class ChatBot:
             self.query_executor = self.get_agent(chat_bot, model, is_with_memory)
         else:
             self.query_executor = chat_bot
+        self.initialized = True
 
     def load_pdf(self, pdf_path: str) -> List[Document]:
         loader = PyPDFLoader(pdf_path)
@@ -58,10 +63,22 @@ class ChatBot:
         return raw_pages
 
     def load_url(self, url: str) -> List[Document]:
-        loader = WebBaseLoader(url)
-        raw_pages = loader.load_and_split()
+        try:
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+            loader = WebBaseLoader([url])
+            loader.requests_kwargs = {
+                "verify": False,
+                "headers": {
+                    "User-Agent": user_agent,
+                },
+            }
+            documents = loader.load()
+            return documents
 
-        return raw_pages
+        except Exception as e:
+            print(e)
+
+        return None
 
     def split_documents(self, documents: List[Document]) -> List[Document]:
         # Text splitter
