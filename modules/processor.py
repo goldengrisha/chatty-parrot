@@ -53,7 +53,7 @@ class Processor(StatesGroup):
 async def command_start(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.chat_bot_type)
     await message.answer(
-        f"Please select chatbot type.",
+        f"Hi, I am a ContextGPT bot👋 \nPlease select chatbot type:",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -130,7 +130,7 @@ async def process_internet_access(message: Message, state: FSMContext) -> None:
 
     await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
     await message.answer(
-        "You can use your bot now.",
+        "You can use your bot now. Please select the options below⬇️",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -378,22 +378,22 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 
 @form_router.message(Processor.chat_bot_type)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Choose the openai model firstly:")
 
 
 @form_router.message(Processor.is_with_memory)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("You need to choose whether to use memory in the bot:")
 
 
 @form_router.message(Processor.is_with_context)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Choose using context instead of full chat gpt:")
 
 
 @form_router.message(Processor.is_with_internet_access)
 async def process_unknown_write_bots(message: Message) -> None:
-    await message.reply("I don't understand you :(")
+    await message.reply("Do you want to use access to the internet?")
 
 
 async def show_summary(
