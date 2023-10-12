@@ -179,7 +179,7 @@ async def process_regular_usage_show_status(
     )
 
 
-@form_router.message(Processor.regular_usage, F.text.in_({"Reset"}))
+@form_router.message(Processor.regular_usage, F.text.in_({"Reset", "/reset"}))
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
     await state.set_data({})
     await state.set_state(Processor.chat_bot_type)
@@ -197,6 +197,17 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
         ),
     )
 
+@form_router.message(Processor.regular_usage, F.text.casefold() == "/uploadpdf")
+async def process_uploadPDF(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.waiting_for_file)
+    await message.answer("Please, upload file.", reply_markup=ReplyKeyboardRemove())
+    
+
+
+@form_router.message(Processor.regular_usage, F.text.casefold() == "/sendurl")
+async def process_uploadPDF(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.waiting_for_url)
+    await message.answer("Please, paste url here.", reply_markup=ReplyKeyboardRemove())
 
 @form_router.message(Processor.regular_usage, F.text.in_({"Upload file or URL"}))
 async def process_regular_usage_document(message: Message, state: FSMContext) -> None:
@@ -299,24 +310,27 @@ def process_invalid_file(message: Message, state: FSMContext) -> None:
     message.answer("Please upload a file.")
 
 
-@form_router.message(Command("cancel"))
-@form_router.message(F.text.casefold() == "cancel")
-async def cancel_handler(message: Message, state: FSMContext) -> None:
-    """
-    Allow user to cancel any action
-    """
-    current_state = await state.get_state()
-    if current_state is None:
-        return
+# @form_router.message(Command("cancel"))
+# @form_router.message(F.text.casefold() == "cancel")
+# async def cancel_handler(message: Message, state: FSMContext) -> None:
+#     """
+#     Allow user to cancel any action
+#     """
+#     current_state = await state.get_state()
+#     if current_state is None:
+#         return
 
-    logging.info("Cancelling state %r", current_state)
-    await state.clear()
-    await message.answer(
-        "Cancelled.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+#     logging.info("Cancelling state %r", current_state)
+#     await state.clear()
+#     await message.answer(
+#         "Cancelled.",
+#         reply_markup=ReplyKeyboardRemove(),
+#     )
 
 
+@form_router.message(Processor.regular_usage, F.text.casefold() == "/help")
+async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    await print_help(message)
 @form_router.message(Processor.regular_usage)
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
@@ -366,3 +380,31 @@ async def show_summary(
     Internet access: {is_with_internet_access}"""
 
     await message.answer(text=text, reply_markup=keyboard)
+    
+    
+
+@form_router.message(F.text.casefold() == "/help")
+async def command_help(message: Message, state: FSMContext):
+    help_message = """
+    Here are the available commands:
+    /start - start the bot
+    /reset - reset the context
+    /uploadPDF - upload new PDF file
+    /sendURL - send new URL
+    
+    /help - show this help message
+    """
+    await print_help(message)
+    
+    
+async def print_help(message: Message):
+    help_message = """
+    Here are the available commands:
+    /start - start the bot
+    /reset - reset the context
+    /uploadPDF - upload new PDF file
+    /sendURL - send new URL
+    
+    /help - show this help message
+    """
+    await message.answer(help_message, parse_mode=ParseMode.MARKDOWN)
