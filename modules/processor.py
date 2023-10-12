@@ -164,6 +164,8 @@ async def show_summary(
     is_with_context = data.get("is_with_context", "Yes")
     is_with_internet_access = data.get("is_with_internet_access", "Yes")
 
+    ai_key = Settings.get_ai_key(chat_bot_type)
+
     text = f"""
     Hey, your bot has been created! 
     Chatbot type: {chat_bot_type} 
