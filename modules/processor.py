@@ -240,7 +240,7 @@ async def process_waiting_for_url(message: Message, state: FSMContext) -> None:
     await state.update_data(path=message.text, is_file=False)
     await state.set_state(Processor.regular_usage)
     await message.answer(
-        f"Your url has been uploaded.",
+        f"Your url has been uploaded. What is your question?",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
