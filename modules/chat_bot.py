@@ -1,28 +1,25 @@
 import os
-import langchain
 import logging
 import requests
 
-from typing import List, Any, Optional, Sequence
+from typing import List, Any, Sequence
 
 from langchain.document_loaders import PyPDFLoader, WebBaseLoader
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import DocArrayInMemorySearch, Chroma
+from langchain.vectorstores import Chroma
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory, ConversationSummaryBufferMemory
-from langchain.schema import SystemMessage, HumanMessage
+from langchain.schema import SystemMessage
 from langchain.prompts.chat import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
 )
 from langchain.utilities import GoogleSearchAPIWrapper
 from langchain.tools import Tool
-from langchain.agents.types import AgentType
-from langchain.agents import ZeroShotAgent, AgentExecutor, initialize_agent
+from langchain.agents import ZeroShotAgent, AgentExecutor
 from langchain.chains import LLMChain
 from PIL import Image
 from selenium import webdriver
@@ -320,18 +317,3 @@ class ChatBot:
         )
 
         return agent
-
-
-# chat_bot = ChatBot(
-#     chat_bot_type="gpt-4",
-#     is_with_memory=False,
-#     is_with_context=True,
-#     is_with_internet_access=True,
-#     is_file=True,
-#     path="./How_Reply_Generated_400k_Case_Study.pdf",
-#     url_process="Loader"
-# )
-
-# print(chat_bot.query_executor.invoke("what is CEO of Google?"))
-# print(chat_bot.query_executor.invoke("Can you compare open and reply rates?"))
-# print(chat_bot.query_executor.invoke("What was the last question about?"))
