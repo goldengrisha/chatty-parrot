@@ -43,7 +43,19 @@ class ChatBot:
         is_file: bool,
         path: str,
         url_process: str,
-    ):
+    ) -> None:
+        """
+        Initialize the ChatBot class with settings and models.
+
+        Args:
+            chat_bot_type (str): Type of chatbot.
+            is_with_memory (bool): Whether to include memory.
+            is_with_context (bool): Whether to include context.
+            is_with_internet_access (bool): Internet access.
+            is_file (bool): Whether to process a file (PDF or URL).
+            path (str): Path to the file or URL.
+            url_process (str): URL processing method ("Loader" or "Screenshot").
+        """
         self.path = path
         self.is_file = is_file
         self.url_process = url_process
@@ -68,12 +80,31 @@ class ChatBot:
         self.initialized = True
 
     def load_pdf(self, pdf_path: str) -> List[Document]:
+        """
+        Load and split a PDF file into pages.
+
+        Args:
+            pdf_path (str): Path to the PDF file.
+
+        Returns:
+            List[Document]: List of pages as Document objects.
+        """
+
         loader = PyPDFLoader(pdf_path)
         raw_pages = loader.load_and_split()
 
         return raw_pages
 
     def load_url(self, url: str) -> List[Document] | None:
+        """
+        Load text from a web page by URL.
+
+        Args:
+            url (str): URL of the page.
+
+        Returns:
+            List[Document] | None: List of pages as Document objects or None in case of an error.
+        """
         try:
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
             loader = WebBaseLoader([url])
@@ -92,6 +123,15 @@ class ChatBot:
         return None
 
     def read_url_webdriver_screenshot(self, url: str) -> List[Document] | None:
+        """
+        Load text from a web page by URL while capturing a screenshot.
+
+        Args:
+            url (str): URL of the page.
+
+        Returns:
+            List[Document] | None: List of pages as Document objects or None in case of an error.
+        """
         try:
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 
@@ -136,7 +176,15 @@ class ChatBot:
         return None
 
     def split_documents(self, documents: List[Document]) -> Sequence[Document] | None:
-        # Text splitter
+        """
+        Splits the text of documents into smaller chunks.
+
+        Args:
+            documents (List[Document]): List of documents.
+
+        Returns:
+            Sequence[Document] | None: Sequence of documents or None in case of an error.
+        """
         chunk_size = 1000
         chunk_overlap = 0
         text_splitter = RecursiveCharacterTextSplitter(
@@ -152,6 +200,12 @@ class ChatBot:
             return None
 
     def get_embeddings(self) -> Any:
+        """
+        Retrieves embeddings for the chatbot.
+
+        Returns:
+            Any: Embeddings.
+        """
         model_name = "thenlper/gte-base"
         model_kwargs = {"device": "cpu"}
         hf_embedding = HuggingFaceEmbeddings(
@@ -168,6 +222,19 @@ class ChatBot:
         is_with_memory: bool,
         is_with_context: bool,
     ) -> RetrievalQA:
+        """
+        Initializes the chatbot with settings and documents.
+
+        Args:
+            chunked_documents (List[Document]): List of documents.
+            embeddings (Any): Embeddings for the chatbot.
+            model (ChatOpenAI): Chatbot model.
+            is_with_memory (bool): Whether to include memory.
+            is_with_context (bool): Whether to include context.
+
+        Returns:
+            RetrievalQA: Initialized chatbot.
+        """
         db = Chroma.from_documents(chunked_documents, embeddings)
         retriever = db.as_retriever(
             search_kwargs={"score_threshold": 0.8}, kwargs={"top_k": 2}
@@ -255,6 +322,17 @@ class ChatBot:
         model: ChatOpenAI,
         is_with_memory: bool,
     ) -> AgentExecutor:
+        """
+        Initializes and configures a customer support agent with tools and memory (if enabled).
+
+        Args:
+            retrieval_qa (RetrievalQA): The RetrievalQA chatbot.
+            model (ChatOpenAI): The chatbot model.
+            is_with_memory (bool): Whether to include memory.
+
+        Returns:
+            AgentExecutor: An initialized customer support agent with tools and memory (if enabled).
+        """
         search = GoogleSearchAPIWrapper()
         tools = [
             Tool(

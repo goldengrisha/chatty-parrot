@@ -49,6 +49,9 @@ class Processor(StatesGroup):
 
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
+    """
+    Handle the /start command to initiate the chatbot configuration.
+    """
     await state.set_state(Processor.chat_bot_type)
     await message.answer(
         f"Hi, I am a ContextGPT bot👋 \nPlease select chatbot type:",
@@ -66,6 +69,9 @@ async def command_start(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.chat_bot_type, F.text.in_({"GPT-3.5-Turbo", "GPT-4"}))
 async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user's selection of the chatbot type.
+    """
     await state.update_data(chat_bot_type=message.text)
     await state.set_state(Processor.is_with_memory)
     keyboard = await create_yes_no_keyboard()
@@ -77,6 +83,9 @@ async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.is_with_memory, F.text.in_({"Yes", "No"}))
 async def process_memory(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user's choice to use memory.
+    """
     await state.update_data(is_with_memory=message.text)
     await state.set_state(Processor.is_with_context)
     keyboard = await create_yes_no_keyboard()
@@ -88,6 +97,9 @@ async def process_memory(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.is_with_context, F.text.in_({"Yes", "No"}))
 async def process_context(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user's choice to use context.
+    """
     await state.update_data(is_with_context=message.text)
     await state.set_state(Processor.is_with_internet_access)
     keyboard = await create_yes_no_keyboard()
@@ -102,6 +114,9 @@ async def process_context(message: Message, state: FSMContext) -> None:
     F.text.in_({"Yes", "No"}),
 )
 async def process_internet_access(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user's choice to use internet access.
+    """
     data = await state.update_data(is_with_internet_access=message.text)
     await state.set_state(Processor.regular_usage)
 
@@ -117,6 +132,9 @@ async def process_internet_access(message: Message, state: FSMContext) -> None:
 async def process_regular_usage_show_status(
         message: Message, state: FSMContext
 ) -> None:
+    """
+    Handle the command to show the current bot configuration status.
+    """
     keyboard = await create_regular_usage_keyboard()
     await show_summary(
         message=message,
@@ -127,6 +145,9 @@ async def process_regular_usage_show_status(
 
 @form_router.message(Processor.regular_usage, F.text.in_({"Reset", "/reset"}))
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    """
+    Handle the command to reset the bot's configuration and state.
+    """
     chat_bot.initialized = False
     await state.set_data({})
     await state.set_state(Processor.chat_bot_type)
@@ -147,12 +168,18 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/uploadpdf")
 async def process_uploadPDF(message: Message, state: FSMContext) -> None:
+    """
+    Handle the command to upload a PDF file.
+    """
     await state.set_state(Processor.waiting_for_file)
     await message.answer("Please, upload PDF file.", reply_markup=ReplyKeyboardRemove())
 
 
 @form_router.message(Processor.regular_usage, F.text.in_({"Upload PDF file or URL"}))
 async def process_regular_usage_document(message: Message, state: FSMContext) -> None:
+    """
+    Handle the command to choose whether to upload a PDF file or URL.
+    """
     await state.set_state(Processor.change_context)
     await message.answer(
         f"Would you like upload PDF file or url?",
@@ -169,12 +196,18 @@ async def process_regular_usage_document(message: Message, state: FSMContext) ->
 
 @form_router.message(Processor.change_context, F.text.in_({"PDF File"}))
 async def process_change_context_document(message: Message, state: FSMContext) -> None:
+    """
+    Handle the choice to upload a PDF file.
+    """
     await state.set_state(Processor.waiting_for_file)
     await message.answer("Please, upload a pdf file.", reply_markup=ReplyKeyboardRemove())
 
 
 @form_router.message(Processor.change_context, F.text.in_({"Url"}))
 async def process_change_context_document(message: Message, state: FSMContext) -> None:
+    """
+    Handle the choice to upload a URL.
+    """
     await state.update_data(path=message.text, is_file=False)
     await state.set_state(Processor.change_url_process)
     keyboard = await create_url_process_keyboard()
@@ -186,6 +219,9 @@ async def process_change_context_document(message: Message, state: FSMContext) -
 
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/sendurl")
 async def process_send_url(message: Message, state: FSMContext) -> None:
+    """
+    Handle the command to send a URL.
+    """
     await state.set_state(Processor.change_url_process)
     keyboard = await create_url_process_keyboard()
     await message.answer(
@@ -196,6 +232,9 @@ async def process_send_url(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"}))
 async def process_change_url_process(message: Message, state: FSMContext) -> None:
+    """
+    Handle the choice of what process to perform with the URL.
+    """
     url_process = message.text
     await state.update_data(url_process=url_process)
     await state.set_state(Processor.processing_url)
@@ -207,6 +246,9 @@ async def process_change_url_process(message: Message, state: FSMContext) -> Non
 
 @form_router.message(Processor.processing_url)
 async def process_processing_url(message: Message, state: FSMContext) -> None:
+    """
+    Handle the URL processing, e.g., web page loading and image recognition.
+    """
     url = message.text
 
     # Check if it's a valid URL
@@ -226,11 +268,17 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.waiting_for_url)
 def process_invalid_url(message: Message, state: FSMContext) -> None:
+    """
+    Handle the case where the user enters an invalid URL.
+    """
     message.answer("Invalid url. Please paste here valid URL.")
 
 
 @form_router.message(Processor.waiting_for_file, F.document)
 async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user uploading a document.
+    """
     try:
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
@@ -263,16 +311,25 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.waiting_for_file)
 def process_invalid_file(message: Message, state: FSMContext) -> None:
+    """
+    Handle the case where the user uploads an invalid file.
+    """
     message.answer("Please upload a file.")
 
 
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/help")
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    """
+    Handle the command to display the help message.
+    """
     await print_help(message)
 
 
 @form_router.message(Processor.regular_usage)
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
+    """
+    Handle regular usage of the bot, processing user queries.
+    """
     global chat_bot
     data = await state.get_data()
     keyboard = await create_regular_usage_keyboard()
@@ -310,21 +367,33 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 
 @form_router.message(Processor.chat_bot_type)
 async def process_unknown_write_bots(message: Message) -> None:
+    """
+    Handle the scenario where the user didn't select a chatbot type.
+    """
     await message.reply("Choose the openai model firstly:")
 
 
 @form_router.message(Processor.is_with_memory)
 async def process_unknown_write_bots(message: Message) -> None:
+    """
+    Handle the scenario where the user didn't select whether to use memory.
+    """
     await message.reply("You need to choose whether to use memory in the bot:")
 
 
 @form_router.message(Processor.is_with_context)
 async def process_unknown_write_bots(message: Message) -> None:
+    """
+    Handle the scenario where the user didn't select whether to use context.
+    """
     await message.reply("Choose using context instead of full chat gpt:")
 
 
 @form_router.message(Processor.is_with_internet_access)
 async def process_unknown_write_bots(message: Message) -> None:
+    """
+    Handle the scenario where the user didn't select whether to use internet access.
+    """
     await message.reply("Do you want to use access to the internet?")
 
 
@@ -334,6 +403,9 @@ async def show_summary(
         keyboard,
         positive: bool = True,
 ) -> None:
+    """
+    Show a summary of the bot's configuration to the user.
+    """
     chat_bot_type = data.get("chat_bot_type", "None")
     is_with_memory = data.get("is_with_memory", "None")
     is_with_context = data.get("is_with_context", "None")
@@ -353,6 +425,9 @@ async def show_summary(
 
 @form_router.message(F.text.casefold() == "/help")
 async def command_help(message: Message, state: FSMContext):
+    """
+    Handle the user's request for help by displaying the help message.
+    """
     help_message = """
     Here are the available commands:
     /start - start the bot
@@ -366,6 +441,9 @@ async def command_help(message: Message, state: FSMContext):
 
 
 async def print_help(message: Message):
+    """
+    Display the help message to the user.
+    """
     help_message = """
     Here are the available commands:
     /start - start the bot
@@ -379,6 +457,9 @@ async def print_help(message: Message):
 
 
 async def create_url_process_keyboard():
+    """
+    Create a custom keyboard for selecting URL processing options.
+    """
     return ReplyKeyboardMarkup(
         keyboard=[
             [
@@ -391,6 +472,9 @@ async def create_url_process_keyboard():
 
 
 async def create_yes_no_keyboard():
+    """
+    Create a custom keyboard for selecting "Yes" or "No" options.
+    """
     return ReplyKeyboardMarkup(
         keyboard=[
             [
@@ -403,6 +487,9 @@ async def create_yes_no_keyboard():
 
 
 async def create_regular_usage_keyboard():
+    """
+    Create a custom keyboard for regular usage options.
+    """
     return ReplyKeyboardMarkup(
         keyboard=[
             [
