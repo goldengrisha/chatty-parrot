@@ -1,8 +1,7 @@
 import asyncio
 import logging
-import sys
+import os
 
-from os import getenv
 from typing import Any, Dict
 
 import aiofiles
@@ -41,6 +40,8 @@ class Processor(StatesGroup):
     change_context = State()
     waiting_for_file = State()
     waiting_for_url = State()
+    change_url_process = State()
+    processing_url = State()
 
     async def run(self):
         global bot
@@ -224,12 +225,35 @@ async def process_change_context_document(message: Message, state: FSMContext) -
 
 @form_router.message(Processor.change_context, F.text.in_({"Url"}))
 async def process_change_context_document(message: Message, state: FSMContext) -> None:
-    await state.set_state(Processor.waiting_for_url)
-    await message.answer("Please, paste url here.", reply_markup=ReplyKeyboardRemove())
+    await state.update_data(path=message.text, is_file=False)
+    await state.set_state(Processor.change_url_process)
+    await message.answer(
+        "What process do you want to perform with the URL?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Loader"),
+                    KeyboardButton(text="Image Recognition"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+    )
 
 
-@form_router.message(Processor.waiting_for_url)
-async def process_waiting_for_url(message: Message, state: FSMContext) -> None:
+@form_router.message(Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"}))
+async def process_change_url_process(message: Message, state: FSMContext) -> None:
+    url_process = message.text
+    await state.update_data(url_process=url_process)
+    await state.set_state(Processor.processing_url)
+    await message.answer(
+        f"You have selected {url_process}. Please, paste the URL here.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@form_router.message(Processor.processing_url)
+async def process_processing_url(message: Message, state: FSMContext) -> None:
     url = message.text
 
     # Check if it's a valid URL
@@ -237,7 +261,8 @@ async def process_waiting_for_url(message: Message, state: FSMContext) -> None:
     if not parsed_url.scheme or not parsed_url.netloc:
         await message.answer("Please paste a valid URL.")
         return
-    await state.update_data(path=message.text, is_file=False)
+    url_process = (await state.get_data())["url_process"]
+    await state.update_data(path=message.text, is_file=False, url_process=url_process)
     await state.set_state(Processor.regular_usage)
     await message.answer(
         f"Your url has been uploaded. What is your question?",
@@ -264,6 +289,8 @@ def process_invalid_url(message: Message, state: FSMContext) -> None:
 @form_router.message(Processor.waiting_for_file, F.document)
 async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
     try:
+        if not os.path.exists("downloads"):
+            os.makedirs("downloads")
         # Download the document
         file_id = message.document.file_id
         file = await bot.get_file(file_id)
@@ -281,7 +308,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
             path=f"downloads/{message.document.file_name}", is_file=True
         )
         await message.answer(
-            f"Your file {message.document.file_name} has been uploaded.",
+            f"Your file {message.document.file_name} has been uploaded. What is your question?",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard=[
                     [
@@ -298,7 +325,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         await state.set_state(Processor.regular_usage)
 
     except Exception as e:
-        await message.answer(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
 
 
 @form_router.message(Processor.waiting_for_file)
@@ -333,7 +360,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
     global chat_bot
     data = await state.get_data()
-    print("data", data)
+    # print("data", data)
     if not all([data.get("path")]):
         await message.answer(
             "Please, upload PDF file or url first.",
@@ -358,7 +385,8 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
             data.get("is_with_context") == "Yes",
             data.get("is_with_internet_access") == "Yes",
             data.get("is_file"),
-            data.get("path")
+            data.get("path"),
+            data.get("url_process")
         )
 
     if chat_bot.path != data.get("path") or chat_bot.is_file != data.get("is_file"):
@@ -368,12 +396,12 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
             data.get("is_with_context") == "Yes",
             data.get("is_with_internet_access") == "Yes",
             data.get("is_file"),
-            data.get("path")
+            data.get("path"),
+            data.get("url_process")
         )
     answer = chat_bot.query_executor.invoke(message.text)
-    await message.reply(
-        answer["output"]
-    )
+    output = answer.get("output") if answer.get("output") else answer.get("result", "No output available")
+    await message.reply(output)
 
 
 @form_router.message(Processor.chat_bot_type)

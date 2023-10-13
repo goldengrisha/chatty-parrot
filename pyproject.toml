@@ -20,6 +20,10 @@ mypy = "1.6.0"
 chromadb = "^0.4.14"
 google-api-python-client = "^2.103.0"
 tiktoken = "^0.5.1"
+requests = "^2.31.0"
+pytesseract = "^0.3.10"
+pillow = "^10.0.1"
+selenium = "^4.14.0"
 
 
 [build-system]

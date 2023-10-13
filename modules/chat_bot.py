@@ -1,7 +1,9 @@
 import os
 import langchain
+import logging
+import requests
 
-from typing import List, Any
+from typing import List, Any, Optional, Sequence
 
 from langchain.document_loaders import PyPDFLoader, WebBaseLoader
 from langchain.schema import Document
@@ -22,6 +24,9 @@ from langchain.tools import Tool
 from langchain.agents.types import AgentType
 from langchain.agents import ZeroShotAgent, AgentExecutor, initialize_agent
 from langchain.chains import LLMChain
+from PIL import Image
+from selenium import webdriver
+import pytesseract
 
 from dotenv import load_dotenv
 
@@ -31,6 +36,7 @@ load_dotenv()
 class ChatBot:
     def __init__(self) -> None:
         self.initialized = False
+
     def initialize(
         self,
         chat_bot_type: str,
@@ -39,12 +45,20 @@ class ChatBot:
         is_with_internet_access: bool,
         is_file: bool,
         path: str,
+        url_process: str,
     ):
         self.path = path
         self.is_file = is_file
+        self.url_process = url_process
         model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
         embeddings = self.get_embeddings()
-        documents = self.load_pdf(path) if is_file else self.load_url(path)
+        if is_file:
+            documents = self.load_pdf(path)
+        else:
+            if url_process == "Loader":
+                documents = self.load_url(path)
+            else:
+                documents = self.read_url_webdriver_screenshot(path)
         chunked_documents = self.split_documents(documents)
         chat_bot: Any = self.get_chat_bot(
             chunked_documents, embeddings, model, is_with_memory, is_with_context
@@ -62,7 +76,7 @@ class ChatBot:
 
         return raw_pages
 
-    def load_url(self, url: str) -> List[Document]:
+    def load_url(self, url: str) -> List[Document] | None:
         try:
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
             loader = WebBaseLoader([url])
@@ -76,11 +90,55 @@ class ChatBot:
             return documents
 
         except Exception as e:
-            print(e)
+            logging.error(f"An error occurred: {e}")
 
         return None
 
-    def split_documents(self, documents: List[Document]) -> List[Document]:
+    def read_url_webdriver_screenshot(self, url: str) -> List[Document] | None:
+        try:
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument(f"--user-agent={user_agent}")
+
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(url)
+
+            driver.execute_script("document.body.style.zoom='100%'")
+            page_width = driver.execute_script(
+                "return Math.max(document.body.scrollWidth, document.body.offsetWidth, document.documentElement.clientWidth, document.documentElement.scrollWidth, document.documentElement.offsetWidth);"
+            )
+            page_height = driver.execute_script(
+                "return Math.max(document.body.scrollHeight, document.body.offsetHeight, document.documentElement.clientHeight, document.documentElement.scrollHeight, document.documentElement.offsetHeight);"
+            )
+
+            driver.set_window_size(page_width, page_height)
+
+            screenshot_path = "full_page_screenshot.png"
+            driver.save_screenshot(screenshot_path)
+
+            img = Image.open(screenshot_path)
+            text = pytesseract.image_to_string(img)
+            doc = Document(page_content=text, metadata={"source": "local"})
+            img.close()
+
+            driver.quit()
+            if os.path.exists(screenshot_path):
+                os.remove(screenshot_path)
+
+            return [doc]
+
+        except requests.HTTPError as e:
+            logging.error(f"Bad response from URL: {str(e)}")
+        except requests.RequestException as e:
+            logging.error(f"Couldn't retrieve text from URL: {str(e)}")
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+
+        return None
+
+    def split_documents(self, documents: List[Document]) -> Sequence[Document] | None:
         # Text splitter
         chunk_size = 1000
         chunk_overlap = 0
@@ -91,8 +149,10 @@ class ChatBot:
             length_function=len,
         )
         chunked_documents = text_splitter.transform_documents(documents=documents)
-
-        return chunked_documents
+        if chunked_documents:
+            return chunked_documents
+        else:
+            return None
 
     def get_embeddings(self) -> Any:
         model_name = "thenlper/gte-base"
@@ -269,6 +329,7 @@ class ChatBot:
 #     is_with_internet_access=True,
 #     is_file=True,
 #     path="./How_Reply_Generated_400k_Case_Study.pdf",
+#     url_process="Loader"
 # )
 
 # print(chat_bot.query_executor.invoke("what is CEO of Google?"))
