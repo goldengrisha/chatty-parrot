@@ -1,21 +1,18 @@
-import asyncio
+import aiofiles
 import logging
 import os
 
 from typing import Any, Dict
 
-import aiofiles
-
-from aiogram import Bot, Dispatcher, F, Router, html
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from urllib.parse import urlparse
 
 from modules.chat_bot import ChatBot
 
-# from aiogram.dispatcher.filters.builtin import ContentTypesFilter
 from aiogram.types import (
     KeyboardButton,
     Message,
@@ -71,17 +68,10 @@ async def command_start(message: Message, state: FSMContext) -> None:
 async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
     await state.update_data(chat_bot_type=message.text)
     await state.set_state(Processor.is_with_memory)
+    keyboard = await create_yes_no_keyboard()
     await message.answer(
         f"Would you like to use memory?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Yes"),
-                    KeyboardButton(text="No"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
     )
 
 
@@ -89,17 +79,10 @@ async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
 async def process_memory(message: Message, state: FSMContext) -> None:
     await state.update_data(is_with_memory=message.text)
     await state.set_state(Processor.is_with_context)
+    keyboard = await create_yes_no_keyboard()
     await message.answer(
         f"Would you like to use context or full chat gpt?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Yes"),
-                    KeyboardButton(text="No"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
     )
 
 
@@ -107,17 +90,10 @@ async def process_memory(message: Message, state: FSMContext) -> None:
 async def process_context(message: Message, state: FSMContext) -> None:
     await state.update_data(is_with_context=message.text)
     await state.set_state(Processor.is_with_internet_access)
+    keyboard = await create_yes_no_keyboard()
     await message.answer(
         f"Would you like to use internet access?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Yes"),
-                    KeyboardButton(text="No"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
     )
 
 
@@ -130,20 +106,10 @@ async def process_internet_access(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.regular_usage)
 
     await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
+    keyboard = await create_regular_usage_keyboard()
     await message.answer(
         "You can use your bot now. Please select the options below⬇️",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Upload PDF file or URL"),
-                ],
-                [
-                    KeyboardButton(text="Reset"),
-                    KeyboardButton(text="Show status"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
     )
 
 
@@ -151,21 +117,11 @@ async def process_internet_access(message: Message, state: FSMContext) -> None:
 async def process_regular_usage_show_status(
         message: Message, state: FSMContext
 ) -> None:
+    keyboard = await create_regular_usage_keyboard()
     await show_summary(
         message=message,
         data=await state.get_data(),
-        keyboard=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Upload PDF file or URL"),
-                ],
-                [
-                    KeyboardButton(text="Reset"),
-                    KeyboardButton(text="Show status"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
+        keyboard=keyboard,
     )
 
 
@@ -195,12 +151,6 @@ async def process_uploadPDF(message: Message, state: FSMContext) -> None:
     await message.answer("Please, upload PDF file.", reply_markup=ReplyKeyboardRemove())
 
 
-@form_router.message(Processor.regular_usage, F.text.casefold() == "/sendurl")
-async def process_uploadPDF(message: Message, state: FSMContext) -> None:
-    await state.set_state(Processor.waiting_for_url)
-    await message.answer("Please, paste url here.", reply_markup=ReplyKeyboardRemove())
-
-
 @form_router.message(Processor.regular_usage, F.text.in_({"Upload PDF file or URL"}))
 async def process_regular_usage_document(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.change_context)
@@ -227,17 +177,20 @@ async def process_change_context_document(message: Message, state: FSMContext) -
 async def process_change_context_document(message: Message, state: FSMContext) -> None:
     await state.update_data(path=message.text, is_file=False)
     await state.set_state(Processor.change_url_process)
+    keyboard = await create_url_process_keyboard()
     await message.answer(
         "What process do you want to perform with the URL?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Loader"),
-                    KeyboardButton(text="Image Recognition"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
+    )
+
+
+@form_router.message(Processor.regular_usage, F.text.casefold() == "/sendurl")
+async def process_send_url(message: Message, state: FSMContext) -> None:
+    await state.set_state(Processor.change_url_process)
+    keyboard = await create_url_process_keyboard()
+    await message.answer(
+        "What process do you want to perform with the URL?",
+        reply_markup=keyboard,
     )
 
 
@@ -259,25 +212,15 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     # Check if it's a valid URL
     parsed_url = urlparse(url)
     if not parsed_url.scheme or not parsed_url.netloc:
-        await message.answer("Please paste a valid URL.")
+        await message.answer("Please, paste a valid URL.")
         return
     url_process = (await state.get_data())["url_process"]
     await state.update_data(path=message.text, is_file=False, url_process=url_process)
     await state.set_state(Processor.regular_usage)
+    keyboard = await create_regular_usage_keyboard()
     await message.answer(
         f"Your url has been uploaded. What is your question?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Upload PDF file or URL"),
-                ],
-                [
-                    KeyboardButton(text="Reset"),
-                    KeyboardButton(text="Show status"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
+        reply_markup=keyboard,
     )
 
 
@@ -307,20 +250,10 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         await state.update_data(
             path=f"downloads/{message.document.file_name}", is_file=True
         )
+        keyboard = await create_regular_usage_keyboard()
         await message.answer(
             f"Your file {message.document.file_name} has been uploaded. What is your question?",
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard=[
-                    [
-                        KeyboardButton(text="Upload PDF file or URL"),
-                    ],
-                    [
-                        KeyboardButton(text="Reset"),
-                        KeyboardButton(text="Show status"),
-                    ],
-                ],
-                resize_keyboard=True,
-            ),
+            reply_markup=keyboard,
         )
         await state.set_state(Processor.regular_usage)
 
@@ -361,21 +294,11 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     global chat_bot
     data = await state.get_data()
     # print("data", data)
+    keyboard = await create_regular_usage_keyboard()
     if not all([data.get("path")]):
         await message.answer(
             "Please, upload PDF file or url first.",
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard=[
-                    [
-                        KeyboardButton(text="Upload PDF file or URL"),
-                    ],
-                    [
-                        KeyboardButton(text="Reset"),
-                        KeyboardButton(text="Show status"),
-                    ],
-                ],
-                resize_keyboard=True,
-            ),
+            reply_markup=keyboard,
         )
         return
     if not chat_bot.initialized:
@@ -438,7 +361,7 @@ async def show_summary(
     ai_key = Settings.get_ai_key(chat_bot_type)
 
     text = f"""
-    Hey, your bot has been created! 
+    Hey, your bot has been created with the following settings: 
     Chatbot type: {chat_bot_type} 
     Memory: {is_with_memory} 
     Context: {is_with_context}  
@@ -472,3 +395,42 @@ async def print_help(message: Message):
     /help - show this help message
     """
     await message.answer(help_message, parse_mode=ParseMode.MARKDOWN)
+
+
+async def create_url_process_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Loader"),
+                KeyboardButton(text="Image Recognition"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
+async def create_yes_no_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Yes"),
+                KeyboardButton(text="No"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
+async def create_regular_usage_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Upload PDF file or URL"),
+            ],
+            [
+                KeyboardButton(text="Reset"),
+                KeyboardButton(text="Show status"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
