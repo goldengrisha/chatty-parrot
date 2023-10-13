@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "chatty-parrot"
+version = "0.1.0"
+description = ""
+authors = ["Gregory <goldengrisha@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+binary = "^1.0.0"
+file = "^0.3.0"
+matches = "^0.0.1"
+aiogram = "3.1.1"
+langchain = "0.0.302"
+openai = "0.28.1"
+python-dotenv = "1.0.0"
+sentence-transformers = "2.2.2"
+pypdf = "3.16.4"
+mypy = "1.6.0"
+chromadb = "^0.4.14"
+google-api-python-client = "^2.103.0"
+tiktoken = "^0.5.1"
+requests = "^2.31.0"
+pytesseract = "^0.3.10"
+pillow = "^10.0.1"
+selenium = "^4.14.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

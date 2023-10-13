@@ -1,8 +1,9 @@
 import os
+
 from dotenv import load_dotenv
 from typing import Optional
 
-load_dotenv()
+load_dotenv("env.example")
 
 
 class Settings:
