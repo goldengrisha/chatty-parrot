@@ -266,24 +266,6 @@ def process_invalid_file(message: Message, state: FSMContext) -> None:
     message.answer("Please upload a file.")
 
 
-# @form_router.message(Command("cancel"))
-# @form_router.message(F.text.casefold() == "cancel")
-# async def cancel_handler(message: Message, state: FSMContext) -> None:
-#     """
-#     Allow user to cancel any action
-#     """
-#     current_state = await state.get_state()
-#     if current_state is None:
-#         return
-
-#     logging.info("Cancelling state %r", current_state)
-#     await state.clear()
-#     await message.answer(
-#         "Cancelled.",
-#         reply_markup=ReplyKeyboardRemove(),
-#     )
-
-
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/help")
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
     await print_help(message)
@@ -293,7 +275,6 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 async def process_regular_usage_reset(message: Message, state: FSMContext) -> None:
     global chat_bot
     data = await state.get_data()
-    # print("data", data)
     keyboard = await create_regular_usage_keyboard()
     if not all([data.get("path")]):
         await message.answer(
