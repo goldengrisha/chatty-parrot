@@ -55,13 +55,14 @@ class Processor(StatesGroup):
         dp.include_router(form_router)
         await dp.start_polling(bot)
 
+
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.salesperson_name)
     await message.answer(
         "Hi, let's configure the bot👋\n<b>Please enter the bot's name: </b>(e.g. Ted Lasso)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -73,7 +74,7 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     await message.answer(
         "<b>Please enter the bot's role: </b>(e.g. Business Development Representative)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -86,7 +87,7 @@ async def process_company_name(message: Message, state: FSMContext) -> None:
         "<b>Please enter the company's business description: </b>"
         "\n(e.g.  Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -98,7 +99,7 @@ async def process_salesperson_role(message: Message, state: FSMContext) -> None:
     await message.answer(
         "<b>Please enter the company name: </b>(e.g. Reply)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -111,7 +112,7 @@ async def process_company_business(message: Message, state: FSMContext) -> None:
         "<b>Please enter the company's core values and mission: </b>"
         "\n (e.g. Our mission is to connect businesses through personalized communication at scale.)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -124,7 +125,7 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
         "<b>Please describe the purpose of this conversation: </b>"
         "\n (e.g. Help to find information what they are looking for.)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -136,7 +137,7 @@ async def process_conversation_purpose(message: Message, state: FSMContext) -> N
     await message.answer(
         "<b>Please enter the conversation type: </b>(e.g., call, email, meeting)",
         reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -153,7 +154,6 @@ async def process_conversation_type(message: Message, state: FSMContext) -> None
         "Thank you! The bot has been configured.",
         reply_markup=keyboard,
     )
-
 
 
 # @form_router.message(CommandStart())
@@ -239,7 +239,7 @@ async def process_internet_access(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Processor.regular_usage, F.text.in_({"Show status"}))
 async def process_regular_usage_show_status(
-        message: Message, state: FSMContext
+    message: Message, state: FSMContext
 ) -> None:
     """
     Handle the command to show the current bot configuration status.
@@ -260,7 +260,9 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     chat_bot.initialized = False
     await state.set_data({})
     await state.set_state(Processor.salesperson_name)
-    await message.answer("Let's configure your bot again.\nPlease enter the salesperson's name:")
+    await message.answer(
+        "Let's configure your bot again.\nPlease enter the salesperson's name:"
+    )
 
 
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/uploadpdf")
@@ -297,7 +299,9 @@ async def process_change_context_document(message: Message, state: FSMContext) -
     Handle the choice to upload a PDF file.
     """
     await state.set_state(Processor.waiting_for_file)
-    await message.answer("Please, upload a pdf file.", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "Please, upload a pdf file.", reply_markup=ReplyKeyboardRemove()
+    )
 
 
 @form_router.message(Processor.change_context, F.text.in_({"Url"}))
@@ -327,7 +331,9 @@ async def process_send_url(message: Message, state: FSMContext) -> None:
     )
 
 
-@form_router.message(Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"}))
+@form_router.message(
+    Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"})
+)
 async def process_change_url_process(message: Message, state: FSMContext) -> None:
     """
     Handle the choice of what process to perform with the URL.
@@ -384,9 +390,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         file = await bot.get_file(file_id)
         file_path = file.file_path
         if not file_path.endswith(".pdf"):
-            await message.answer(
-                "Please upload a PDF file."
-            )
+            await message.answer("Please upload a PDF file.")
         download_file = await bot.download_file(file_path)
         file_name = message.document.file_name
         local_path = f"downloads/{file_name}"
@@ -438,23 +442,48 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
             reply_markup=keyboard,
         )
         return
+
+    data["use_tools"] = True
+    logging.info(f"DATA: {data}")
+
     if not chat_bot.initialized:
         chat_bot.initialize(
             data.get("use_tools"),
+            "gpt-3.5-turbo",
             data.get("is_file"),
             data.get("path"),
-            data.get("url_process")
+            # data.get("url_process"),
         )
 
     if chat_bot.path != data.get("path") or chat_bot.is_file != data.get("is_file"):
         chat_bot.initialize(
             data.get("use_tools"),
+            "gpt-3.5-turbo",
             data.get("is_file"),
             data.get("path"),
-            data.get("url_process")
+            # data.get("url_process"),
         )
-    answer = chat_bot.query_executor.invoke(message.text)
-    output = answer.get("output") if answer.get("output") else answer.get("result", "No output available")
+    # answer = chat_bot.query_executor.invoke(message.text)
+
+    # self.query_executor.human_step("Can you compare open and reply rates?")
+    #         self.query_executor.step()
+
+    chat_bot.query_executor.human_step(message.text)
+    chat_bot.query_executor.step()
+    output = (
+        chat_bot.query_executor.conversation_history[-1]
+        .replace("<END_OF_TURN>", "")
+        .replace("Ted Lasso:", "")
+        .strip()
+    )
+
+    # logging.error(f"\n\n\n{type(output)}\n\n\n")
+
+    # output = (
+    #     answer.get("output")
+    #     if answer.get("output")
+    #     else answer.get("result", "No output available")
+    # )
     await message.reply(output)
 
 
@@ -491,22 +520,30 @@ async def process_unknown_write_bots(message: Message) -> None:
 
 
 async def show_summary(
-        message: Message,
-        data: Dict[str, Any],
-        keyboard,
-        positive: bool = True,
+    message: Message,
+    data: Dict[str, Any],
+    keyboard,
+    positive: bool = True,
 ) -> None:
     """
     Show a summary of the bot's configuration to the user.
     """
     salesperson_name = data.get("salesperson_name", "Ted Lasso")
-    salesperson_role = data.get("salesperson_role", "Business Development Representative")
+    salesperson_role = data.get(
+        "salesperson_role", "Business Development Representative"
+    )
     company_name = data.get("company_name", "Reply")
-    company_business = data.get("company_business",
-                                "Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.")
-    company_values = data.get("company_values",
-                              "Our mission is to connect businesses through personalized communication at scale.")
-    conversation_purpose = data.get("conversation_purpose", "Help to find information what they are looking for.")
+    company_business = data.get(
+        "company_business",
+        "Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+    )
+    company_values = data.get(
+        "company_values",
+        "Our mission is to connect businesses through personalized communication at scale.",
+    )
+    conversation_purpose = data.get(
+        "conversation_purpose", "Help to find information what they are looking for."
+    )
     conversation_type = data.get("conversation_type", "call")
 
     text = f"""

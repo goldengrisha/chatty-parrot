@@ -14,7 +14,10 @@ from langchain.llms import BaseLLM
 from langchain.chains.base import Chain
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, LLMSingleActionAgent, AgentExecutor
-from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
+from langchain.text_splitter import (
+    CharacterTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
@@ -51,6 +54,7 @@ class RetrievalChatBot:
         self.use_tools = use_tools
         self.path = path
         self.is_file = is_file
+
         config = dict(
             salesperson_name="Ted Lasso",
             salesperson_role="Business Development Representative",
@@ -65,32 +69,39 @@ class RetrievalChatBot:
                 "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional.",
             ),
         )
-        self.use_tools = True,
-        model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
-        embeddings = self.get_embeddings()
+        # self.use_tools = (True,)
 
-        if is_file:
-            documents = self.load_pdf(path)
-        else:
-            documents = self.load_url(path)
-
-        chunked_documents = self.split_documents(documents)
-        self.query_executor = self.get_chat_bot(chunked_documents, embeddings, model)
         if self.use_tools:
-            print("Using tools")
             verbose = True
             llm = ChatOpenAI(temperature=0.9)
-            sales_agent = SalesGPT.from_llm(
+
+            self.query_executor = SalesGPT.from_llm(
                 llm,
                 verbose=verbose,
+                is_file=is_file,
+                path=path,
                 **config,
             )
             # ініціалізувати агента продажу
-            sales_agent.seed_agent()
-            sales_agent.step()
+            self.query_executor.seed_agent()
+            self.query_executor.step()
 
-            sales_agent.human_step("Can you compare open and reply rates?")
-            sales_agent.step()
+            # self.query_executor.human_step("Can you compare open and reply rates?")
+            # self.query_executor.step()
+        else:
+            model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
+            embeddings = self.get_embeddings()
+
+            if is_file:
+                documents = self.load_pdf(path)
+            else:
+                documents = self.load_url(path)
+
+            chunked_documents = self.split_documents(documents)
+            self.query_executor = self.get_chat_bot(
+                chunked_documents, embeddings, model
+            )
+
         self.initialized = True
 
     def load_pdf(self, pdf_path: str) -> List[Document]:
@@ -104,7 +115,6 @@ class RetrievalChatBot:
             List[Document]: List of pages as Document objects.
         """
         if pdf_path is None or not os.path.exists(pdf_path):
-            print(pdf_path)
             raise ValueError("Invalid PDF file path")
 
         loader = PyPDFLoader(pdf_path)
@@ -357,7 +367,7 @@ def get_tools(is_file: bool, path: str):
     # knowledge_base = setup_knowledge_base(product_catalog)
 
     knowledge_base = RetrievalChatBot()
-    knowledge_base.initialize("gpt-3.5-turbo", is_file, path)
+    knowledge_base.initialize(False, "gpt-3.5-turbo", is_file, path)
 
     tools = [
         Tool(
