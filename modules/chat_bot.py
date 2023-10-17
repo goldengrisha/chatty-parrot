@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+import pytesseract
 
 from typing import List, Any, Sequence
 
@@ -10,6 +11,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
+from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory, ConversationSummaryBufferMemory
 from langchain.schema import SystemMessage
@@ -21,10 +23,9 @@ from langchain.utilities import GoogleSearchAPIWrapper
 from langchain.tools import Tool
 from langchain.agents import ZeroShotAgent, AgentExecutor
 from langchain.chains import LLMChain
+
 from PIL import Image
 from selenium import webdriver
-import pytesseract
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -221,7 +222,7 @@ class ChatBot:
         model: ChatOpenAI,
         is_with_memory: bool,
         is_with_context: bool,
-    ) -> RetrievalQA:
+    ) -> BaseRetrievalQA:
         """
         Initializes the chatbot with settings and documents.
 
@@ -395,3 +396,144 @@ class ChatBot:
         )
 
         return agent
+
+
+class RetrievalChatBot:
+    def __init__(self) -> None:
+        self.initialized = False
+
+    def initialize(
+        self,
+        chat_bot_type: str,
+        is_file: bool,
+        path: str,
+    ) -> None:
+        """
+        Initialize the ChatBot class with settings and models.
+
+        Args:
+            chat_bot_type (str): Type of chatbot.
+            is_file (bool): Whether to process a file (PDF or URL).
+            path (str): Path to the file or URL.
+        """
+        self.path = path
+        self.is_file = is_file
+        model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
+        embeddings = self.get_embeddings()
+
+        if is_file:
+            documents = self.load_pdf(path)
+        else:
+            documents = self.load_url(path)
+
+        chunked_documents = self.split_documents(documents)
+        self.query_executor = self.get_chat_bot(chunked_documents, embeddings, model)
+        self.initialized = True
+
+    def load_pdf(self, pdf_path: str) -> List[Document]:
+        """
+        Load and split a PDF file into pages.
+
+        Args:
+            pdf_path (str): Path to the PDF file.
+
+        Returns:
+            List[Document]: List of pages as Document objects.
+        """
+
+        loader = PyPDFLoader(pdf_path)
+        raw_pages = loader.load_and_split()
+
+        return raw_pages
+
+    def load_url(self, url: str) -> List[Document]:
+        """
+        Load text from a web page by URL.
+
+        Args:
+            url (str): URL of the page.
+
+        Returns:
+            List[Document]: List of pages as Document objects or [] in case of an error.
+        """
+        try:
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+            loader = WebBaseLoader([url])
+            loader.requests_kwargs = {
+                "verify": False,
+                "headers": {
+                    "User-Agent": user_agent,
+                },
+            }
+            documents = loader.load()
+            return documents
+
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+
+        return []
+
+    def split_documents(self, documents: List[Document]) -> List[Document]:
+        """
+        Splits the text of documents into smaller chunks.
+
+        Args:
+            documents (List[Document]): List of documents.
+
+        Returns:
+            Sequence[Document]: Sequence of documents or [] in case of an error.
+        """
+        chunk_size = 1000
+        chunk_overlap = 0
+        text_splitter = RecursiveCharacterTextSplitter(
+            separators=["\n\n", "\n", " ", ""],
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+        )
+        chunked_documents = text_splitter.transform_documents(documents=documents)
+        if chunked_documents:
+            return list(chunked_documents)
+        else:
+            return []
+
+    def get_embeddings(self) -> Any:
+        """
+        Retrieves embeddings for the chatbot.
+
+        Returns:
+            Any: Embeddings.
+        """
+        model_name = "thenlper/gte-base"
+        model_kwargs = {"device": "cpu"}
+        hf_embedding = HuggingFaceEmbeddings(
+            model_name=model_name, model_kwargs=model_kwargs
+        )
+
+        return hf_embedding
+
+    def get_chat_bot(
+        self,
+        chunked_documents: List[Document],
+        embeddings: Any,
+        model: ChatOpenAI,
+    ) -> BaseRetrievalQA:
+        """
+        Initializes the chatbot with settings and documents.
+
+        Args:
+            chunked_documents (List[Document]): List of documents.
+            embeddings (Any): Embeddings for the chatbot.
+            model (ChatOpenAI): Chatbot model.
+
+        Returns:
+            RetrievalQA: Initialized chatbot.
+        """
+        db = Chroma.from_documents(chunked_documents, embeddings)
+        retriever = db.as_retriever()
+
+        retrieval_qa = RetrievalQA.from_chain_type(
+            llm=model, chain_type="stuff", retriever=retriever, verbose=True
+        )
+
+        return retrieval_qa
