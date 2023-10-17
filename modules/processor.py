@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from urllib.parse import urlparse
 
-from modules.chat_bot import ChatBot
+from modules.sales_chat_bot import RetrievalChatBot
 
 from aiogram.types import (
     KeyboardButton,
@@ -25,7 +25,7 @@ from modules.settings import Settings
 form_router = Router()
 bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
 dp = Dispatcher()
-chat_bot = ChatBot()
+chat_bot = RetrievalChatBot()
 
 
 class Processor(StatesGroup):
@@ -40,31 +40,140 @@ class Processor(StatesGroup):
     change_url_process = State()
     processing_url = State()
 
+    salesperson_name = State()
+    salesperson_role = State()
+    company_name = State()
+    company_business = State()
+    company_values = State()
+    conversation_purpose = State()
+    conversation_type = State()
+    conversation_stage = State()
+
     async def run(self):
         global bot
         global dp
         dp.include_router(form_router)
         await dp.start_polling(bot)
 
-
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
-    """
-    Handle the /start command to initiate the chatbot configuration.
-    """
-    await state.set_state(Processor.chat_bot_type)
+    await state.set_state(Processor.salesperson_name)
     await message.answer(
-        f"Hi, I am a ContextGPT bot👋 \nPlease select chatbot type:",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="GPT-3.5-Turbo"),
-                    KeyboardButton(text="GPT-4"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
+        "Hi, let's configure the bot👋\n<b>Please enter the bot's name: </b>(e.g. Ted Lasso)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
     )
+
+
+@form_router.message(Processor.salesperson_name)
+async def process_salesperson_name(message: Message, state: FSMContext) -> None:
+    salesperson_name = message.text
+    await state.update_data(salesperson_name=salesperson_name)
+    await state.set_state(Processor.salesperson_role)
+    await message.answer(
+        "<b>Please enter the bot's role: </b>(e.g. Business Development Representative)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.company_name)
+async def process_company_name(message: Message, state: FSMContext) -> None:
+    company_name = message.text
+    await state.update_data(company_name=company_name)
+    await state.set_state(Processor.company_business)
+    await message.answer(
+        "<b>Please enter the company's business description: </b>"
+        "\n(e.g.  Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.salesperson_role)
+async def process_salesperson_role(message: Message, state: FSMContext) -> None:
+    salesperson_role = message.text
+    await state.update_data(salesperson_role=salesperson_role)
+    await state.set_state(Processor.company_name)
+    await message.answer(
+        "<b>Please enter the company name: </b>(e.g. Reply)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.company_business)
+async def process_company_business(message: Message, state: FSMContext) -> None:
+    company_business = message.text
+    await state.update_data(company_business=company_business)
+    await state.set_state(Processor.company_values)
+    await message.answer(
+        "<b>Please enter the company's core values and mission: </b>"
+        "\n (e.g. Our mission is to connect businesses through personalized communication at scale.)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.company_values)
+async def process_company_values(message: Message, state: FSMContext) -> None:
+    company_values = message.text
+    await state.update_data(company_values=company_values)
+    await state.set_state(Processor.conversation_purpose)
+    await message.answer(
+        "<b>Please describe the purpose of this conversation: </b>"
+        "\n (e.g. Help to find information what they are looking for.)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.conversation_purpose)
+async def process_conversation_purpose(message: Message, state: FSMContext) -> None:
+    conversation_purpose = message.text
+    await state.update_data(conversation_purpose=conversation_purpose)
+    await state.set_state(Processor.conversation_type)
+    await message.answer(
+        "<b>Please enter the conversation type: </b>(e.g., call, email, meeting)",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML
+    )
+
+
+@form_router.message(Processor.conversation_type)
+async def process_conversation_type(message: Message, state: FSMContext) -> None:
+    conversation_type = message.text
+    data = await state.update_data(conversation_type=conversation_type)
+    await state.set_state(Processor.regular_usage)
+
+    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
+    keyboard = await create_regular_usage_keyboard()
+
+    await message.answer(
+        "Thank you! The bot has been configured.",
+        reply_markup=keyboard,
+    )
+
+
+
+# @form_router.message(CommandStart())
+# async def command_start(message: Message, state: FSMContext) -> None:
+#     """
+#     Handle the /start command to initiate the chatbot configuration.
+#     """
+#     await state.set_state(Processor.chat_bot_type)
+#     await message.answer(
+#         f"Hi, I am a ContextGPT bot👋 \nPlease select chatbot type:",
+#         reply_markup=ReplyKeyboardMarkup(
+#             keyboard=[
+#                 [
+#                     KeyboardButton(text="GPT-3.5-Turbo"),
+#                     KeyboardButton(text="GPT-4"),
+#                 ]
+#             ],
+#             resize_keyboard=True,
+#         ),
+#     )
 
 
 @form_router.message(Processor.chat_bot_type, F.text.in_({"GPT-3.5-Turbo", "GPT-4"}))
@@ -150,20 +259,8 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     chat_bot.initialized = False
     await state.set_data({})
-    await state.set_state(Processor.chat_bot_type)
-    await message.answer("Let's configure your bot again.")
-    await message.answer(
-        f"Please select chatbot type.",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="GPT-3.5-Turbo"),
-                    KeyboardButton(text="GPT-4"),
-                ]
-            ],
-            resize_keyboard=True,
-        ),
-    )
+    await state.set_state(Processor.salesperson_name)
+    await message.answer("Let's configure your bot again.\nPlease enter the salesperson's name:")
 
 
 @form_router.message(Processor.regular_usage, F.text.casefold() == "/uploadpdf")
@@ -291,16 +388,17 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                 "Please upload a PDF file."
             )
         download_file = await bot.download_file(file_path)
-        async with aiofiles.open(
-                f"downloads/{message.document.file_name}", mode="wb"
-        ) as file:
-            await file.write(download_file.read())
-        await state.update_data(
-            path=f"downloads/{message.document.file_name}", is_file=True
-        )
+        file_name = message.document.file_name
+        local_path = f"downloads/{file_name}"
+        print(local_path)
+
+        async with aiofiles.open(local_path, mode="wb") as local_file:
+            await local_file.write(download_file.read())
+
+        await state.update_data(path=local_path, is_file=True)
         keyboard = await create_regular_usage_keyboard()
         await message.answer(
-            f"Your file {message.document.file_name} has been uploaded. What is your question?",
+            f"Your file {file_name} has been uploaded. What is your question?",
             reply_markup=keyboard,
         )
         await state.set_state(Processor.regular_usage)
@@ -332,6 +430,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     global chat_bot
     data = await state.get_data()
+    print("regular usage", data.get("path"))
     keyboard = await create_regular_usage_keyboard()
     if not all([data.get("path")]):
         await message.answer(
@@ -341,10 +440,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
         return
     if not chat_bot.initialized:
         chat_bot.initialize(
-            data.get("chat_bot_type").lower(),
-            data.get("is_with_memory") == "Yes",
-            data.get("is_with_context") == "Yes",
-            data.get("is_with_internet_access") == "Yes",
+            data.get("use_tools"),
             data.get("is_file"),
             data.get("path"),
             data.get("url_process")
@@ -352,10 +448,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 
     if chat_bot.path != data.get("path") or chat_bot.is_file != data.get("is_file"):
         chat_bot.initialize(
-            data.get("chat_bot_type").lower(),
-            data.get("is_with_memory") == "Yes",
-            data.get("is_with_context") == "Yes",
-            data.get("is_with_internet_access") == "Yes",
+            data.get("use_tools"),
             data.get("is_file"),
             data.get("path"),
             data.get("url_process")
@@ -406,19 +499,25 @@ async def show_summary(
     """
     Show a summary of the bot's configuration to the user.
     """
-    chat_bot_type = data.get("chat_bot_type", "None")
-    is_with_memory = data.get("is_with_memory", "None")
-    is_with_context = data.get("is_with_context", "None")
-    is_with_internet_access = data.get("is_with_internet_access", "None")
-
-    ai_key = Settings.get_ai_key(chat_bot_type)
+    salesperson_name = data.get("salesperson_name", "Ted Lasso")
+    salesperson_role = data.get("salesperson_role", "Business Development Representative")
+    company_name = data.get("company_name", "Reply")
+    company_business = data.get("company_business",
+                                "Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.")
+    company_values = data.get("company_values",
+                              "Our mission is to connect businesses through personalized communication at scale.")
+    conversation_purpose = data.get("conversation_purpose", "Help to find information what they are looking for.")
+    conversation_type = data.get("conversation_type", "call")
 
     text = f"""
-    Hey, your bot has been created with the following settings: 
-    Chatbot type: {chat_bot_type} 
-    Memory: {is_with_memory} 
-    Context: {is_with_context}  
-    Internet access: {is_with_internet_access}"""
+        Hey, your bot has been created with the following settings: 
+        Chatbot name: {salesperson_name} 
+        Chatbot role: {salesperson_role} 
+        Company name: {company_name}
+        Company business: {company_business}
+        Company values: {company_values}
+        Conversation purpose: {conversation_purpose}
+        Conversation type: {conversation_type}"""
 
     await message.answer(text=text, reply_markup=keyboard)
 
