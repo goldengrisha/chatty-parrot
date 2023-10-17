@@ -305,35 +305,6 @@ async def process_change_context_document(message: Message, state: FSMContext) -
 
 
 @form_router.message(Processor.change_context, F.text.in_({"Url"}))
-async def process_change_context_document(message: Message, state: FSMContext) -> None:
-    """
-    Handle the choice to upload a URL.
-    """
-    await state.update_data(path=message.text, is_file=False)
-    await state.set_state(Processor.change_url_process)
-    keyboard = await create_url_process_keyboard()
-    await message.answer(
-        "What process do you want to perform with the URL?",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(Processor.regular_usage, F.text.casefold() == "/sendurl")
-async def process_send_url(message: Message, state: FSMContext) -> None:
-    """
-    Handle the command to send a URL.
-    """
-    await state.set_state(Processor.change_url_process)
-    keyboard = await create_url_process_keyboard()
-    await message.answer(
-        "What process do you want to perform with the URL?",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(
-    Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"})
-)
 async def process_change_url_process(message: Message, state: FSMContext) -> None:
     """
     Handle the choice of what process to perform with the URL.
@@ -488,6 +459,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
             "gpt-3.5-turbo",
             data.get("is_file"),
             data.get("path"),
+            config=config
             # data.get("url_process"),
         )
     # answer = chat_bot.query_executor.invoke(message.text)
@@ -616,21 +588,6 @@ async def print_help(message: Message):
     /help - show this help message
     """
     await message.answer(help_message, parse_mode=ParseMode.MARKDOWN)
-
-
-async def create_url_process_keyboard():
-    """
-    Create a custom keyboard for selecting URL processing options.
-    """
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Loader"),
-                KeyboardButton(text="Image Recognition"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
 
 
 async def create_yes_no_keyboard():
