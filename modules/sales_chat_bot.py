@@ -42,6 +42,7 @@ class RetrievalChatBot:
         chat_bot_type: str,
         is_file: bool,
         path: str,
+        config: Dict,
     ) -> None:
         """
         Initialize the ChatBot class with settings and models.
@@ -55,22 +56,6 @@ class RetrievalChatBot:
         self.path = path
         self.is_file = is_file
 
-        config = dict(
-            salesperson_name="Ted Lasso",
-            salesperson_role="Business Development Representative",
-            company_name="Reply",
-            company_business="Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
-            company_values="Our mission is to connect businesses through personalized communication at scale.",
-            conversation_purpose="Help to find information what they are looking for.",
-            conversation_history=[],
-            conversation_type="call",
-            conversation_stage=conversation_stages.get(
-                "1",
-                "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional.",
-            ),
-        )
-        # self.use_tools = (True,)
-
         if self.use_tools:
             verbose = True
             llm = ChatOpenAI(temperature=0.9)
@@ -80,6 +65,7 @@ class RetrievalChatBot:
                 verbose=verbose,
                 is_file=is_file,
                 path=path,
+                config=config,
                 **config,
             )
             # ініціалізувати агента продажу
@@ -359,7 +345,7 @@ def setup_knowledge_base(product_catalog: str) -> RetrievalQA:
     return knowledge_base
 
 
-def get_tools(is_file: bool, path: str):
+def get_tools(is_file: bool, path: str, config: Dict):
     # query to get_tools can be used to be embedded and relevant tools found
     # see here: https://langchain-langchain.vercel.app/docs/use_cases/agents/custom_agent_with_plugin_retrieval#tool-retriever
 
@@ -367,7 +353,7 @@ def get_tools(is_file: bool, path: str):
     # knowledge_base = setup_knowledge_base(product_catalog)
 
     knowledge_base = RetrievalChatBot()
-    knowledge_base.initialize(False, "gpt-3.5-turbo", is_file, path)
+    knowledge_base.initialize(False, "gpt-3.5-turbo", is_file, path, config=config)
 
     tools = [
         Tool(
@@ -614,7 +600,9 @@ class SalesGPT(Chain):
         self.conversation_history.append(ai_message)
 
     @classmethod
-    def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
+    def from_llm(
+        cls, llm: BaseLLM, verbose: bool = False, config: Dict = {}, **kwargs
+    ) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
@@ -632,7 +620,7 @@ class SalesGPT(Chain):
             is_file = kwargs["is_file"]
             file_path = kwargs["path"]
             # product_catalog = kwargs["product_catalog"]
-            tools = get_tools(is_file=is_file, path=file_path)
+            tools = get_tools(is_file=is_file, path=file_path, config=config)
 
             prompt = CustomPromptTemplateForTools(
                 template=SALES_AGENT_TOOLS_PROMPT,

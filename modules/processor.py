@@ -446,12 +446,39 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     data["use_tools"] = True
     logging.info(f"DATA: {data}")
 
+    config = dict(
+        salesperson_name=data.get("salesperson_name", "John"),
+        salesperson_role=data.get(
+            "salesperson_role", "Business Development Representative"
+        ),
+        company_name=data.get("company_name", "Reply.io"),
+        company_business=data.get(
+            "company_business",
+            "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+        ),
+        company_values=data.get(
+            "company_values",
+            "Our mission is to connect businesses through personalized communication at scale.",
+        ),
+        conversation_purpose=data.get(
+            "conversation_purpose",
+            "Help to find information what they are looking for.",
+        ),
+        conversation_history=[],
+        conversation_type=data.get("conversation_type", "call"),
+        conversation_stage=(
+            "Introduction: Start the conversation by introducing yourself and your company.",
+            "Be polite and respectful while keeping the tone of the conversation professional.",
+        ),
+    )
+
     if not chat_bot.initialized:
         chat_bot.initialize(
             data.get("use_tools"),
             "gpt-3.5-turbo",
             data.get("is_file"),
             data.get("path"),
+            config=config
             # data.get("url_process"),
         )
 
@@ -473,7 +500,6 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     output = (
         chat_bot.query_executor.conversation_history[-1]
         .replace("<END_OF_TURN>", "")
-        .replace("Ted Lasso:", "")
         .strip()
     )
 
