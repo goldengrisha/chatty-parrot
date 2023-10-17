@@ -2,8 +2,7 @@ import os
 import re
 
 from typing import Dict, List, Any, Union, Callable, Optional
-
-from aiogram.types import Document
+from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -31,64 +30,35 @@ import logging
 
 load_dotenv()
 
+#  verbose = True
+#             llm = ChatOpenAI(temperature=0.9)
+
+#             self.query_executor = SalesGPT.from_llm(
+#                 llm,
+#                 verbose=verbose,
+#                 is_file=is_file,
+#                 path=path,
+#                 config=config,
+#                 **config,
+#             )
+#             # ініціалізувати агента продажу
+#             self.query_executor.seed_agent()
+#             self.query_executor.step()
+
 
 class RetrievalChatBot:
-    def __init__(self) -> None:
-        self.initialized = False
-
-    def initialize(
-        self,
-        use_tools: bool,
-        chat_bot_type: str,
-        is_file: bool,
-        path: str,
-        config: Dict,
-    ) -> None:
-        """
-        Initialize the ChatBot class with settings and models.
-
-        Args:
-            chat_bot_type (str): Type of chatbot.
-            is_file (bool): Whether to process a file (PDF or URL).
-            path (str): Path to the file or URL.
-        """
-        self.use_tools = use_tools
-        self.path = path
-        self.is_file = is_file
-
-        if self.use_tools:
-            verbose = True
-            llm = ChatOpenAI(temperature=0.9)
-
-            self.query_executor = SalesGPT.from_llm(
-                llm,
-                verbose=verbose,
-                is_file=is_file,
-                path=path,
-                config=config,
-                **config,
-            )
-            # ініціалізувати агента продажу
-            self.query_executor.seed_agent()
-            self.query_executor.step()
-
-            # self.query_executor.human_step("Can you compare open and reply rates?")
-            # self.query_executor.step()
+    def __init__(self, is_file: bool, path: str) -> None:
+        documents = []
+        if is_file:
+            documents = self.load_pdf(path)
         else:
-            model = ChatOpenAI(temperature=0, model_name=chat_bot_type)
-            embeddings = self.get_embeddings()
+            documents = self.load_url(path)
 
-            if is_file:
-                documents = self.load_pdf(path)
-            else:
-                documents = self.load_url(path)
+        model = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+        embeddings = self.get_embeddings()
+        chunked_documents = self.split_documents(documents)
 
-            chunked_documents = self.split_documents(documents)
-            self.query_executor = self.get_chat_bot(
-                chunked_documents, embeddings, model
-            )
-
-        self.initialized = True
+        self.query_executor = self.get_chat_bot(chunked_documents, embeddings, model)
 
     def load_pdf(self, pdf_path: str) -> List[Document]:
         """
@@ -128,6 +98,7 @@ class RetrievalChatBot:
                 },
             }
             documents = loader.load()
+
             return documents
 
         except Exception as e:
@@ -345,21 +316,20 @@ def setup_knowledge_base(product_catalog: str) -> RetrievalQA:
     return knowledge_base
 
 
-def get_tools(is_file: bool, path: str, config: Dict):
+def get_tools(is_file: bool, path: str):
     # query to get_tools can be used to be embedded and relevant tools found
     # see here: https://langchain-langchain.vercel.app/docs/use_cases/agents/custom_agent_with_plugin_retrieval#tool-retriever
 
     # we only use one tool for now, but this is highly extensible!
     # knowledge_base = setup_knowledge_base(product_catalog)
 
-    knowledge_base = RetrievalChatBot()
-    knowledge_base.initialize(False, "gpt-3.5-turbo", is_file, path, config=config)
+    knowledge_base = RetrievalChatBot(is_file, path)
 
     tools = [
         Tool(
             name="ProductSearch",
             func=knowledge_base.query_executor.run,
-            description="useful for when you need to answer questions to specific question about company and their tolls, products.",
+            description="useful for when you need to answer to specific question about company and their tolls, feature, products.",
         )
     ]
 
@@ -600,9 +570,7 @@ class SalesGPT(Chain):
         self.conversation_history.append(ai_message)
 
     @classmethod
-    def from_llm(
-        cls, llm: BaseLLM, verbose: bool = False, config: Dict = {}, **kwargs
-    ) -> "SalesGPT":
+    def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
@@ -620,7 +588,7 @@ class SalesGPT(Chain):
             is_file = kwargs["is_file"]
             file_path = kwargs["path"]
             # product_catalog = kwargs["product_catalog"]
-            tools = get_tools(is_file=is_file, path=file_path, config=config)
+            tools = get_tools(is_file=is_file, path=file_path)
 
             prompt = CustomPromptTemplateForTools(
                 template=SALES_AGENT_TOOLS_PROMPT,
