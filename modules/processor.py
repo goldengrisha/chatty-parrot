@@ -61,9 +61,20 @@ class Processor(StatesGroup):
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.salesperson_name)
+    await message.answer("Hi, let's configure the bot! 👋")
     await message.answer(
-        "Hi, let's configure the bot👋\n<b>Please enter the bot's name: </b>(e.g. Ted Lasso)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please enter the bot's name or choose one below: </b>\n(1/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Gregory"),
+                    KeyboardButton(text="Dmytro"),
+                    KeyboardButton(text="Oksana"),
+                    KeyboardButton(text="Mykyta"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -74,21 +85,18 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_name=salesperson_name)
     await state.set_state(Processor.salesperson_role)
     await message.answer(
-        "<b>Please enter the bot's role: </b>(e.g. Sales Manager, Business Development Representative)",
-        reply_markup=ReplyKeyboardRemove(),
-        parse_mode=ParseMode.HTML,
-    )
-
-
-@form_router.message(Processor.company_name)
-async def process_company_name(message: Message, state: FSMContext) -> None:
-    company_name = message.text
-    await state.update_data(company_name=company_name)
-    await state.set_state(Processor.company_business)
-    await message.answer(
-        "<b>Please enter the company's business description: </b>"
-        "\n(e.g.  Reply is your AI-powered sales engagement platform to create new opportunities at scale – automatically.)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please enter the bot's role or choose one below: </b>\n(2/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Sales Team Representative"),
+                    KeyboardButton(text="Sales Manager"),
+                    KeyboardButton(text="VIP Client Support Representative"),
+                    KeyboardButton(text="Business Development Representative"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -99,8 +107,48 @@ async def process_salesperson_role(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_role=salesperson_role)
     await state.set_state(Processor.company_name)
     await message.answer(
-        "<b>Please enter the company name: </b>(e.g. Reply)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please enter the company name or choose one below: </b>\n(3/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Reply.io"),
+                    KeyboardButton(text="OutplayHQ"),
+                    KeyboardButton(text="Amazon"),
+                    KeyboardButton(text="Monobank"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@form_router.message(Processor.company_name)
+async def process_company_name(message: Message, state: FSMContext) -> None:
+    company_name = message.text
+    await state.update_data(company_name=company_name)
+    await state.set_state(Processor.company_business)
+    await message.answer(
+        "<b>Please enter the company's business description or choose one below: </b>\n(4/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(
+                        text="Our company is your AI-powered sales engagement platform to create new opportunities at scale – automatically."
+                    ),
+                    KeyboardButton(
+                        text="Our company is a leading sales engagement platform."
+                    ),
+                    KeyboardButton(
+                        text="Our company has been on the cutting edge of sales engagement technology since 1999."
+                    ),
+                    KeyboardButton(
+                        text="Our company wants to connect businesses through personalized communication at scale."
+                    ),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -111,9 +159,26 @@ async def process_company_business(message: Message, state: FSMContext) -> None:
     await state.update_data(company_business=company_business)
     await state.set_state(Processor.company_values)
     await message.answer(
-        "<b>Please enter the company's core values and mission: </b>"
-        "\n (e.g. Our mission is to connect businesses through personalized communication at scale.)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please enter the company's core values and mission or choose below: </b>\n(5/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(
+                        text="Our mission is to connect businesses through personalized communication at scale."
+                    ),
+                    KeyboardButton(
+                        text="Our goal is helping the businesses to be more productive."
+                    ),
+                    KeyboardButton(
+                        text="Our task is to change the way people work using AI."
+                    ),
+                    KeyboardButton(
+                        text="Our idea is to make the world a better place by creating new opportunities."
+                    ),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -124,9 +189,26 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
     await state.update_data(company_values=company_values)
     await state.set_state(Processor.conversation_purpose)
     await message.answer(
-        "<b>Please describe the purpose of this conversation: </b>"
-        "\n (e.g. Answer the user's questions as a friendly sales manager to lead them to book a demo.)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please describe the purpose of this conversation or choose one below: </b>\n(6/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(
+                        text="Answering the prospect's questions as a friendly sales manager."
+                    ),
+                    KeyboardButton(
+                        text="Convincing the prospect to book a demo, proposing a trial, or sharing the contacts"
+                    ),
+                    KeyboardButton(
+                        text="Forcing the prospect to book a demo, proposing a trial, or sharing the contacts as hard as possible"
+                    ),
+                    KeyboardButton(
+                        text="Just having a friendly conversation about nature, history, or anything else."
+                    ),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -137,8 +219,18 @@ async def process_conversation_purpose(message: Message, state: FSMContext) -> N
     await state.update_data(conversation_purpose=conversation_purpose)
     await state.set_state(Processor.conversation_type)
     await message.answer(
-        "<b>Please enter the conversation type: </b>(e.g., call, email, meeting)",
-        reply_markup=ReplyKeyboardRemove(),
+        "<b>Please enter the conversation type or choose one below: </b>\n(7/7)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Telegram Chat"),
+                    KeyboardButton(text="Call"),
+                    KeyboardButton(text="Email"),
+                    KeyboardButton(text="Meeting"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
         parse_mode=ParseMode.HTML,
     )
 
@@ -356,10 +448,12 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
         )
 
         user_bots[user_id] = SalesGPT.from_llm(
-            ChatOpenAI(temperature=0.8),
+            # ChatOpenAI(temperature=0.8),
+            # True,
+            # **args
+            ChatOpenAI(temperature=0.8, model="gpt-4"),
             True,
-            **args
-            # ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
+            **args,
         )
 
         user_bots[user_id].seed_agent()
@@ -587,7 +681,7 @@ async def show_summary(
     conversation_purpose = data.get(
         "conversation_purpose", "Help to find information what they are looking for."
     )
-    conversation_type = data.get("conversation_type", "call")
+    conversation_type = data.get("conversation_type", "Telegram chat")
 
     text = f"""
         Your bot has been created with the following settings: 
