@@ -2,6 +2,11 @@ import os
 import re
 
 from typing import Dict, List, Any, Union, Callable, Optional
+
+import pytesseract
+import requests
+from PIL import Image
+from selenium import webdriver
 from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
@@ -38,8 +43,12 @@ class RetrievalChatBot:
             documents = self.load_pdf(path)
         else:
             documents = self.load_url(path)
+            # if url_process == "Loader":
+            #     documents = self.load_url(path)
+            # elif url_process == "Image Recognition":
+            #     documents = self.read_url_webdriver_screenshot(path)
 
-        model = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+        model = ChatOpenAI(temperature=0, model_name="gpt-4")
         embeddings = self.get_embeddings()
         chunked_documents = self.split_documents(documents)
 
@@ -90,6 +99,50 @@ class RetrievalChatBot:
             logging.error(f"An error occurred: {e}")
 
         return []
+
+    def read_url_webdriver_screenshot(self, url: str) -> List[Document] | None:
+        try:
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument(f"--user-agent={user_agent}")
+
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(url)
+
+            driver.execute_script("document.body.style.zoom='100%'")
+            page_width = driver.execute_script(
+                "return Math.max(document.body.scrollWidth, document.body.offsetWidth, document.documentElement.clientWidth, document.documentElement.scrollWidth, document.documentElement.offsetWidth);"
+            )
+            page_height = driver.execute_script(
+                "return Math.max(document.body.scrollHeight, document.body.offsetHeight, document.documentElement.clientHeight, document.documentElement.scrollHeight, document.documentElement.offsetHeight);"
+            )
+
+            driver.set_window_size(page_width, page_height)
+
+            screenshot_path = "full_page_screenshot.png"
+            driver.save_screenshot(screenshot_path)
+
+            img = Image.open(screenshot_path)
+            text = pytesseract.image_to_string(img)
+            doc = Document(page_content=text, metadata={"source": "local"})
+            img.close()
+
+            driver.quit()
+            if os.path.exists(screenshot_path):
+                os.remove(screenshot_path)
+
+            return [doc]
+
+        except requests.HTTPError as e:
+            logging.error(f"Bad response from URL: {str(e)}")
+        except requests.RequestException as e:
+            logging.error(f"Couldn't retrieve text from URL: {str(e)}")
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+
+        return None
 
     def split_documents(self, documents: List[Document]) -> List[Document]:
         """

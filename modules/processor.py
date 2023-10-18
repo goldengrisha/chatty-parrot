@@ -158,67 +158,6 @@ async def process_conversation_type(message: Message, state: FSMContext) -> None
     )
 
 
-@form_router.message(Processor.chat_bot_type, F.text.in_({"GPT-3.5-Turbo", "GPT-4"}))
-async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
-    """
-    Handle the user's selection of the chatbot type.
-    """
-    await state.update_data(chat_bot_type=message.text)
-    await state.set_state(Processor.is_with_memory)
-    keyboard = await create_yes_no_keyboard()
-    await message.answer(
-        f"Would you like to use memory?",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(Processor.is_with_memory, F.text.in_({"Yes", "No"}))
-async def process_memory(message: Message, state: FSMContext) -> None:
-    """
-    Handle the user's choice to use memory.
-    """
-    await state.update_data(is_with_memory=message.text)
-    await state.set_state(Processor.is_with_context)
-    keyboard = await create_yes_no_keyboard()
-    await message.answer(
-        f"Would you like to use context or full chat gpt?",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(Processor.is_with_context, F.text.in_({"Yes", "No"}))
-async def process_context(message: Message, state: FSMContext) -> None:
-    """
-    Handle the user's choice to use context.
-    """
-    await state.update_data(is_with_context=message.text)
-    await state.set_state(Processor.is_with_internet_access)
-    keyboard = await create_yes_no_keyboard()
-    await message.answer(
-        f"Would you like to use internet access?",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(
-    Processor.is_with_internet_access,
-    F.text.in_({"Yes", "No"}),
-)
-async def process_internet_access(message: Message, state: FSMContext) -> None:
-    """
-    Handle the user's choice to use internet access.
-    """
-    data = await state.update_data(is_with_internet_access=message.text)
-    await state.set_state(Processor.regular_usage)
-
-    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
-    keyboard = await create_regular_usage_keyboard()
-    await message.answer(
-        "You can use your bot now. Please select the options below⬇️",
-        reply_markup=keyboard,
-    )
-
-
 @form_router.message(Processor.regular_usage, F.text.in_({"Show status"}))
 async def process_regular_usage_show_status(
     message: Message, state: FSMContext
@@ -291,6 +230,24 @@ async def process_change_url_process(message: Message, state: FSMContext) -> Non
     """
     Handle the choice of what process to perform with the URL.
     """
+    await state.update_data(path=message.text, is_file=False)
+    await state.set_state(Processor.change_url_process)
+    await message.answer(
+        "What process do you want to perform with the URL?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Loader"),
+                    KeyboardButton(text="Image Recognition"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+    )
+
+
+@form_router.message(Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"}))
+async def process_change_url_process(message: Message, state: FSMContext) -> None:
     url_process = message.text
     await state.update_data(url_process=url_process)
     await state.set_state(Processor.processing_url)
@@ -530,38 +487,6 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
         await message.reply(output)
 
 
-@form_router.message(Processor.chat_bot_type)
-async def process_unknown_write_bots(message: Message) -> None:
-    """
-    Handle the scenario where the user didn't select a chatbot type.
-    """
-    await message.reply("Choose the openai model firstly:")
-
-
-@form_router.message(Processor.is_with_memory)
-async def process_unknown_write_bots(message: Message) -> None:
-    """
-    Handle the scenario where the user didn't select whether to use memory.
-    """
-    await message.reply("You need to choose whether to use memory in the bot:")
-
-
-@form_router.message(Processor.is_with_context)
-async def process_unknown_write_bots(message: Message) -> None:
-    """
-    Handle the scenario where the user didn't select whether to use context.
-    """
-    await message.reply("Choose using context instead of full chat gpt:")
-
-
-@form_router.message(Processor.is_with_internet_access)
-async def process_unknown_write_bots(message: Message) -> None:
-    """
-    Handle the scenario where the user didn't select whether to use internet access.
-    """
-    await message.reply("Do you want to use access to the internet?")
-
-
 async def show_summary(
     message: Message,
     data: Dict[str, Any],
@@ -633,21 +558,6 @@ async def print_help(message: Message):
     /help - show this help message
     """
     await message.answer(help_message, parse_mode=ParseMode.MARKDOWN)
-
-
-async def create_yes_no_keyboard():
-    """
-    Create a custom keyboard for selecting "Yes" or "No" options.
-    """
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Yes"),
-                KeyboardButton(text="No"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
 
 
 async def create_regular_usage_keyboard():
