@@ -30,21 +30,6 @@ import logging
 
 load_dotenv()
 
-#  verbose = True
-#             llm = ChatOpenAI(temperature=0.9)
-
-#             self.query_executor = SalesGPT.from_llm(
-#                 llm,
-#                 verbose=verbose,
-#                 is_file=is_file,
-#                 path=path,
-#                 config=config,
-#                 **config,
-#             )
-#             # ініціалізувати агента продажу
-#             self.query_executor.seed_agent()
-#             self.query_executor.step()
-
 
 class RetrievalChatBot:
     def __init__(self, is_file: bool, path: str) -> None:
@@ -572,6 +557,7 @@ class SalesGPT(Chain):
     @classmethod
     def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
+        logging.warning(kwargs.keys())
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
         sales_conversation_utterance_chain = SalesConversationChain.from_llm(

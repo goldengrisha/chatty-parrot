@@ -9,9 +9,10 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from langchain.chat_models import ChatOpenAI
 from urllib.parse import urlparse
 
-from modules.sales_chat_bot import RetrievalChatBot
+from modules.sales_chat_bot import RetrievalChatBot, SalesGPT
 
 from aiogram.types import (
     KeyboardButton,
@@ -25,7 +26,8 @@ from modules.settings import Settings
 form_router = Router()
 bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
 dp = Dispatcher()
-chat_bot = RetrievalChatBot()
+
+user_bots: Dict[str, SalesGPT] = {}
 
 
 class Processor(StatesGroup):
@@ -156,26 +158,6 @@ async def process_conversation_type(message: Message, state: FSMContext) -> None
     )
 
 
-# @form_router.message(CommandStart())
-# async def command_start(message: Message, state: FSMContext) -> None:
-#     """
-#     Handle the /start command to initiate the chatbot configuration.
-#     """
-#     await state.set_state(Processor.chat_bot_type)
-#     await message.answer(
-#         f"Hi, I am a ContextGPT bot👋 \nPlease select chatbot type:",
-#         reply_markup=ReplyKeyboardMarkup(
-#             keyboard=[
-#                 [
-#                     KeyboardButton(text="GPT-3.5-Turbo"),
-#                     KeyboardButton(text="GPT-4"),
-#                 ]
-#             ],
-#             resize_keyboard=True,
-#         ),
-#     )
-
-
 @form_router.message(Processor.chat_bot_type, F.text.in_({"GPT-3.5-Turbo", "GPT-4"}))
 async def process_chat_bot_type(message: Message, state: FSMContext) -> None:
     """
@@ -257,7 +239,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     Handle the command to reset the bot's configuration and state.
     """
-    chat_bot.initialized = False
+    # chat_bot.initialized = False
     await state.set_data({})
     await state.set_state(Processor.salesperson_name)
     await message.answer(
@@ -376,6 +358,10 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
             f"Your file {file_name} has been uploaded. What is your question?",
             reply_markup=keyboard,
         )
+
+        user_id = message.from_user.id
+        user_bots.pop(user_id, None)
+
         await state.set_state(Processor.regular_usage)
 
     except Exception as e:
@@ -403,7 +389,7 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     Handle regular usage of the bot, processing user queries.
     """
-    global chat_bot
+
     data = await state.get_data()
     print("regular usage", data.get("path"))
     keyboard = await create_regular_usage_keyboard()
@@ -414,74 +400,53 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
         )
         return
 
-    data["use_tools"] = True
-    logging.info(f"DATA: {data}")
+    user_id = message.from_user.id
 
-    config = dict(
-        salesperson_name=data.get("salesperson_name", "John"),
-        salesperson_role=data.get(
-            "salesperson_role", "Business Development Representative"
-        ),
-        company_name=data.get("company_name", "Reply.io"),
-        company_business=data.get(
-            "company_business",
-            "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
-        ),
-        company_values=data.get(
-            "company_values",
-            "Our mission is to connect businesses through personalized communication at scale.",
-        ),
-        conversation_purpose=data.get(
-            "conversation_purpose",
-            "Help to find information what they are looking for.",
-        ),
-        conversation_history=[],
-        conversation_type=data.get("conversation_type", "call"),
-        conversation_stage=(
-            "Introduction: Start the conversation by introducing yourself and your company.",
-            "Be polite and respectful while keeping the tone of the conversation professional.",
-        ),
-    )
-
-    if not chat_bot.initialized:
-        chat_bot.initialize(
-            data.get("use_tools"),
-            "gpt-3.5-turbo",
-            data.get("is_file"),
-            data.get("path"),
-            config=config
-            # data.get("url_process"),
+    if user_id not in user_bots:
+        args = dict(
+            salesperson_name=data.get("salesperson_name", "John"),
+            salesperson_role=data.get(
+                "salesperson_role", "Business Development Representative"
+            ),
+            company_name=data.get("company_name", "Reply.io"),
+            company_business=data.get(
+                "company_business",
+                "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+            ),
+            company_values=data.get(
+                "company_values",
+                "Our mission is to connect businesses through personalized communication at scale.",
+            ),
+            conversation_purpose=data.get(
+                "conversation_purpose",
+                "Help to find information what they are looking for.",
+            ),
+            conversation_history=[],
+            conversation_type=data.get("conversation_type", "call"),
+            conversation_stage=(
+                "Introduction: Start the conversation by introducing yourself and your company.",
+                "Be polite and respectful while keeping the tone of the conversation professional.",
+            ),
+            use_tools=True,
+            is_file=data.get("is_file", False),
+            path=data.get("path", ""),
         )
 
-    if chat_bot.path != data.get("path") or chat_bot.is_file != data.get("is_file"):
-        chat_bot.initialize(
-            data.get("use_tools"),
-            "gpt-3.5-turbo",
-            data.get("is_file"),
-            data.get("path"),
-            config=config
-            # data.get("url_process"),
+        user_bots[user_id] = SalesGPT.from_llm(
+            ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
         )
-    # answer = chat_bot.query_executor.invoke(message.text)
 
-    # self.query_executor.human_step("Can you compare open and reply rates?")
-    #         self.query_executor.step()
+        user_bots[user_id].seed_agent()
+        user_bots[user_id].step()
+    else:
+        user_bots[user_id].human_step(message.text)
+        user_bots[user_id].step()
 
-    chat_bot.query_executor.human_step(message.text)
-    chat_bot.query_executor.step()
-    output = (
-        chat_bot.query_executor.conversation_history[-1]
-        .replace("<END_OF_TURN>", "")
-        .strip()
-    )
+    bot = user_bots[user_id]
 
-    # logging.error(f"\n\n\n{type(output)}\n\n\n")
+    logging.info(f"User {user_id} history: {bot.conversation_history}")
+    output = bot.conversation_history[-1].replace("<END_OF_TURN>", "").strip()
 
-    # output = (
-    #     answer.get("output")
-    #     if answer.get("output")
-    #     else answer.get("result", "No output available")
-    # )
     await message.reply(output)
 
 
