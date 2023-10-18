@@ -367,21 +367,16 @@ class SalesConvoOutputParser(AgentOutputParser):
             print("TEXT")
             print(text)
             print("-------")
-        if f"{self.ai_prefix}:" in text:
+
+        regex = r"Action: (.*?)[\n]*Action Input: (.*)"
+        match = re.search(regex, text)
+
+        if not match:
             return AgentFinish(
                 {"output": text.split(f"{self.ai_prefix}:")[-1].strip()}, text
             )
-        regex = r"Action: (.*?)[\n]*Action Input: (.*)"
-        match = re.search(regex, text)
-        if not match:
-            ## TODO - this is not entirely reliable, sometimes results in an error.
-            return AgentFinish(
-                {
-                    "output": "I apologize, I was unable to find the answer to your question. Is there anything else I can help with?"
-                },
-                text,
-            )
-            # raise OutputParserException(f"Could not parse LLM output: `{text}`")
+
+        logging.info(f"=========== MATCHING ===========\n\n\n\n\n\n\n")
         action = match.group(1)
         action_input = match.group(2)
         return AgentAction(action.strip(), action_input.strip(" ").strip('"'), text)
@@ -518,6 +513,8 @@ class SalesGPT(Chain):
     def _call(self, inputs: Dict[str, Any]) -> None:
         """Run one step of the sales agent."""
 
+        self.determine_conversation_stage()
+
         # Generate agent's utterance
         if self.use_tools:
             ai_message = self.sales_agent_executor.run(
@@ -548,16 +545,17 @@ class SalesGPT(Chain):
 
         # Add agent's response to conversation history
         print(f"{self.salesperson_name}: ", ai_message.rstrip("<END_OF_TURN>"))
+
         agent_name = self.salesperson_name
         ai_message = agent_name + ": " + ai_message
         if "<END_OF_TURN>" not in ai_message:
             ai_message += " <END_OF_TURN>"
+
         self.conversation_history.append(ai_message)
 
     @classmethod
     def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
-        logging.warning(kwargs.keys())
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
         sales_conversation_utterance_chain = SalesConversationChain.from_llm(

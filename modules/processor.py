@@ -74,7 +74,7 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_name=salesperson_name)
     await state.set_state(Processor.salesperson_role)
     await message.answer(
-        "<b>Please enter the bot's role: </b>(e.g. Business Development Representative)",
+        "<b>Please enter the bot's role: </b>(e.g. Sales Manager, Business Development Representative)",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode=ParseMode.HTML,
     )
@@ -125,7 +125,7 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.conversation_purpose)
     await message.answer(
         "<b>Please describe the purpose of this conversation: </b>"
-        "\n (e.g. Help to find information what they are looking for.)",
+        "\n (e.g. Answer the user's questions as a friendly sales manager to lead them to book a demo.)",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode=ParseMode.HTML,
     )
@@ -317,9 +317,64 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.regular_usage)
     keyboard = await create_regular_usage_keyboard()
     await message.answer(
-        f"Your url has been uploaded. What is your question?",
+        # f"Your url has been uploaded. What is your question?",
+        f"Your url has been uploaded. Connecting the bot...",
         reply_markup=keyboard,
     )
+
+    user_id = message.from_user.id
+    data = await state.get_data()
+
+    if user_id not in user_bots:
+        args = dict(
+            salesperson_name=data.get("salesperson_name", "John"),
+            salesperson_role=data.get(
+                "salesperson_role", "Business Development Representative"
+            ),
+            company_name=data.get("company_name", "Reply.io"),
+            company_business=data.get(
+                "company_business",
+                "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+            ),
+            company_values=data.get(
+                "company_values",
+                "Our mission is to connect businesses through personalized communication at scale.",
+            ),
+            conversation_purpose=data.get(
+                "conversation_purpose",
+                "Help to find information what they are looking for.",
+            ),
+            conversation_history=[],
+            conversation_type=data.get("conversation_type", "call"),
+            conversation_stage=(
+                "Introduction: Start the conversation by introducing yourself and your company.",
+                "Be polite and respectful while keeping the tone of the conversation professional.",
+            ),
+            use_tools=True,
+            is_file=data.get("is_file", False),
+            path=data.get("path", ""),
+        )
+
+        user_bots[user_id] = SalesGPT.from_llm(
+            ChatOpenAI(temperature=0.8),
+            True,
+            **args
+            # ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
+        )
+
+        user_bots[user_id].seed_agent()
+        user_bots[user_id].step()
+
+        output = (
+            user_bots[user_id]
+            .conversation_history[-1]
+            .replace("<END_OF_TURN>", "")
+            .strip()
+        )
+
+        await message.reply(output)
+
+    await state.set_state(Processor.regular_usage)
 
 
 @form_router.message(Processor.waiting_for_url)
@@ -355,12 +410,62 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         await state.update_data(path=local_path, is_file=True)
         keyboard = await create_regular_usage_keyboard()
         await message.answer(
-            f"Your file {file_name} has been uploaded. What is your question?",
+            # f"Your file {file_name} has been uploaded. What is your question?",
+            f"Your file {file_name} has been uploaded. Connecting the bot...",
             reply_markup=keyboard,
         )
 
         user_id = message.from_user.id
-        user_bots.pop(user_id, None)
+        data = await state.get_data()
+
+        if user_id not in user_bots:
+            args = dict(
+                salesperson_name=data.get("salesperson_name", "John"),
+                salesperson_role=data.get(
+                    "salesperson_role", "Business Development Representative"
+                ),
+                company_name=data.get("company_name", "Reply.io"),
+                company_business=data.get(
+                    "company_business",
+                    "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+                ),
+                company_values=data.get(
+                    "company_values",
+                    "Our mission is to connect businesses through personalized communication at scale.",
+                ),
+                conversation_purpose=data.get(
+                    "conversation_purpose",
+                    "Help to find information what they are looking for.",
+                ),
+                conversation_history=[],
+                conversation_type=data.get("conversation_type", "call"),
+                conversation_stage=(
+                    "Introduction: Start the conversation by introducing yourself and your company.",
+                    "Be polite and respectful while keeping the tone of the conversation professional.",
+                ),
+                use_tools=True,
+                is_file=data.get("is_file", False),
+                path=data.get("path", ""),
+            )
+
+            user_bots[user_id] = SalesGPT.from_llm(
+                ChatOpenAI(temperature=0.8),
+                True,
+                **args
+                # ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
+            )
+
+            user_bots[user_id].seed_agent()
+            user_bots[user_id].step()
+
+            output = (
+                user_bots[user_id]
+                .conversation_history[-1]
+                .replace("<END_OF_TURN>", "")
+                .strip()
+            )
+
+            await message.reply(output)
 
         await state.set_state(Processor.regular_usage)
 
@@ -402,52 +507,27 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
 
     user_id = message.from_user.id
 
-    if user_id not in user_bots:
-        args = dict(
-            salesperson_name=data.get("salesperson_name", "John"),
-            salesperson_role=data.get(
-                "salesperson_role", "Business Development Representative"
-            ),
-            company_name=data.get("company_name", "Reply.io"),
-            company_business=data.get(
-                "company_business",
-                "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
-            ),
-            company_values=data.get(
-                "company_values",
-                "Our mission is to connect businesses through personalized communication at scale.",
-            ),
-            conversation_purpose=data.get(
-                "conversation_purpose",
-                "Help to find information what they are looking for.",
-            ),
-            conversation_history=[],
-            conversation_type=data.get("conversation_type", "call"),
-            conversation_stage=(
-                "Introduction: Start the conversation by introducing yourself and your company.",
-                "Be polite and respectful while keeping the tone of the conversation professional.",
-            ),
-            use_tools=True,
-            is_file=data.get("is_file", False),
-            path=data.get("path", ""),
-        )
+    user_bots[user_id].human_step(message.text)
+    user_bots[user_id].step()
 
-        user_bots[user_id] = SalesGPT.from_llm(
-            ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
-        )
+    output = (
+        user_bots[user_id].conversation_history[-1].replace("<END_OF_TURN>", "").strip()
+    )
 
-        user_bots[user_id].seed_agent()
-        user_bots[user_id].step()
+    if "<END_OF_CALL>" in output:
+        output = output.replace("<END_OF_CALL>", "")
+        await message.reply(output)
+        await state.set_data({})
+        await state.set_state(Processor.regular_usage)
+
+        keyboard = await create_regular_usage_keyboard()
+
+        await message.answer(
+            "Conversation finished. You may start a new conversation now.",
+            reply_markup=keyboard,
+        )
     else:
-        user_bots[user_id].human_step(message.text)
-        user_bots[user_id].step()
-
-    bot = user_bots[user_id]
-
-    logging.info(f"User {user_id} history: {bot.conversation_history}")
-    output = bot.conversation_history[-1].replace("<END_OF_TURN>", "").strip()
-
-    await message.reply(output)
+        await message.reply(output)
 
 
 @form_router.message(Processor.chat_bot_type)
@@ -510,7 +590,7 @@ async def show_summary(
     conversation_type = data.get("conversation_type", "call")
 
     text = f"""
-        Hey, your bot has been created with the following settings: 
+        Your bot has been created with the following settings: 
         Chatbot name: {salesperson_name} 
         Chatbot role: {salesperson_role} 
         Company name: {company_name}
