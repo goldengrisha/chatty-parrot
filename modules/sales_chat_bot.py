@@ -42,14 +42,14 @@ load_dotenv()
 
 
 class RetrievalChatBot:
-    def __init__(self, is_file: bool, path: str, url_process: str) -> None:
+    def __init__(self, is_file: bool, path: str, url_loading_type: str) -> None:
         documents = []
         if is_file:
             documents = self.load_pdf(path)
         else:
-            if url_process == "Image Recognition":
-                documents = self.read_url_webdriver_screenshot(path)
-            elif url_process == "Loader":
+            if UrlLoadingType.RECOGNITION == url_loading_type:
+                documents = self.read_url_recognition(path)
+            else:
                 documents = self.load_url(path)
 
         model = ChatOpenAI(temperature=0, model_name="gpt-4")
@@ -292,15 +292,8 @@ class SalesConversationChain(LLMChain):
         return cls(prompt=prompt, llm=llm, verbose=verbose)
 
 
-def get_tools(is_file: bool, path: str, url_process: str) -> List[Tool]:
-    # query to get_tools can be used to be embedded and relevant tools found
-    # see here: https://langchain-langchain.vercel.app/docs/use_cases/agents/custom_agent_with_plugin_retrieval#tool-retriever
-
-    # we only use one tool for now, but this is highly extensible!
-    # knowledge_base = setup_knowledge_base(product_catalog)
-
-    knowledge_base = RetrievalChatBot(is_file, path, url_process)
-
+def get_tools(is_file: bool, path: str, url_loading_type: str) -> List[Tool]:
+    knowledge_base = RetrievalChatBot(is_file, path, url_loading_type)
     tools = [
         Tool(
             name="ProductSearch",
@@ -555,9 +548,11 @@ class SalesGPT(Chain):
         else:
             is_file = kwargs["is_file"]
             file_path = kwargs["path"]
-            url_process = kwargs["url_process"]
+            url_loading_type = kwargs["url_loading_type"]
             # product_catalog = kwargs["product_catalog"]
-            tools = get_tools(is_file=is_file, path=file_path, url_process=url_process)
+            tools = get_tools(
+                is_file=is_file, path=file_path, url_loading_type=url_loading_type
+            )
 
             prompt = CustomPromptTemplateForTools(
                 template=SALES_AGENT_TOOLS_PROMPT,
@@ -611,3 +606,8 @@ class ConversationPurpose(Enum):
     DEMO = "book a demo"
     TRIAL = "setup a trial"
     CONTACTS = "get contacts"
+
+
+class UrlLoadingType(Enum):
+    RECOGNITION = 1
+    HTML_PARSING = 2
