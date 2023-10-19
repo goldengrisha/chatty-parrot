@@ -322,21 +322,6 @@ class SalesConversationChain(LLMChain):
         return cls(prompt=prompt, llm=llm, verbose=verbose)
 
 
-def get_tools(
-    file_type: FileType, path: str, url_loading_type: UrlLoadingType
-) -> List[Tool]:
-    knowledge_base = RetrievalChatBot(file_type, path, url_loading_type)
-    tools = [
-        Tool(
-            name="ProductSearch",
-            func=knowledge_base.query_executor.run,
-            description="useful for when you need to answer to specific question about company and their tolls, feature, products.",
-        )
-    ]
-
-    return tools
-
-
 class CustomPromptTemplateForTools(StringPromptTemplate):
     # The template to use
     template: str
@@ -555,12 +540,23 @@ class SalesGPT(Chain):
         self.conversation_history.append(ai_message)
 
     @classmethod
+    def get_tools(
+        cls, file_type: FileType, path: str, url_loading_type: UrlLoadingType
+    ) -> List[Tool]:
+        knowledge_base = RetrievalChatBot(file_type, path, url_loading_type)
+        tools = [
+            Tool(
+                name="ProductSearch",
+                func=knowledge_base.query_executor.run,
+                description="useful for when you need to answer to specific question about company and their tolls, feature, products.",
+            )
+        ]
+
+        return tools
+
+    @classmethod
     def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
-        stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
-        sales_conversation_utterance_chain = SalesConversationChain.from_llm(
-            llm, verbose=verbose
-        )
 
         if (
             not "file_type" in kwargs.keys()
@@ -573,7 +569,7 @@ class SalesGPT(Chain):
         file_path = kwargs["path"]
         url_loading_type = kwargs["url_loading_type"]
 
-        tools = get_tools(
+        tools = cls.get_tools(
             file_type=file_type, path=file_path, url_loading_type=url_loading_type
         )
         prompt = CustomPromptTemplateForTools(
@@ -595,6 +591,7 @@ class SalesGPT(Chain):
                 "sales_bot_response_size",
             ],
         )
+
         llm_chain = LLMChain(llm=llm, prompt=prompt, verbose=verbose)
         tool_names = [tool.name for tool in tools]
         # WARNING: this output parser is NOT reliable yet
@@ -611,6 +608,11 @@ class SalesGPT(Chain):
         )
         sales_agent_executor = AgentExecutor.from_agent_and_tools(
             agent=sales_agent_with_tools, tools=tools, verbose=verbose
+        )
+
+        stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
+        sales_conversation_utterance_chain = SalesConversationChain.from_llm(
+            llm, verbose=verbose
         )
 
         return cls(
