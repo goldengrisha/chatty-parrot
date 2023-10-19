@@ -613,7 +613,7 @@ class SalesGPT(Chain):
         )
 
 
-class ConversationPurpose(Enum):
+class SalesBotConversationPurpose(Enum):
     DEMO = "book a demo"
     TRIAL = "setup a trial"
     CONTACTS = "get contacts"
@@ -624,7 +624,7 @@ class UrlLoadingType(Enum):
     HTML_PARSING = 2
 
 
-class VoiceTone(Enum):
+class SalesBotVoiceTone(Enum):
     NEUTRAL = "Neutral"
     FORMAL_AND_PROFESSIONAL = "Formal and Professional"
     CONVERSATIONAL_AND_FRIENDLY = "Conversational and Friendly"
@@ -633,7 +633,7 @@ class VoiceTone(Enum):
     EDUCATIONAL_AND_INFORMATIVE = "Educational and Informative"
 
 
-class ResponseSize(Enum):
+class SalesBotResponseSize(Enum):
     SMALL = 50
     MEDIUM = 250
     LARGE = 500
