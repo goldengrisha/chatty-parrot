@@ -29,8 +29,60 @@ bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 user_bots: Dict[str, SalesGPT] = {}
-global has_uploaded
-has_uploaded = False
+
+
+def get_tone_instruction(salesperson_tone):
+    """
+    Returns a detailed and strict instruction for the given salesperson tone.
+
+    Parameters:
+    - salesperson_tone (str): The tone of the salesperson.
+
+    Returns:
+    - str: Detailed instruction for the given tone.
+    """
+
+    tone_instructions = {
+        "Formal and Professional": (
+            "Maintain a polished and businesslike demeanor in your responses."
+            "Use complete sentences, avoid contractions (e.g., use 'cannot' instead of 'can't')."
+            "If you don't know the prospect title (e.g., Mr., Mrs., Dr.), you must specifically ask how to address them in the first message."
+            "Ensure to address them accordingly."
+        ),
+        "Conversational and Friendly": (
+            "Aim for a casual and warm tone."
+            "Imagine you're speaking to a close friend."
+            "Use contractions (e.g., 'I'm', 'can't'), and feel free to sprinkle in colloquial expressions or idioms where appropriate."
+        ),
+        "Inspirational and Motivational": (
+            "Infuse your messages with positivity and encouragement."
+            "Utilize uplifting words and phrases, and always focus on the positive aspects of any situation or product feature."
+        ),
+        "Empathetic and Supportive": (
+            "Always show understanding and compassion."
+            "Put yourself in the prospect's shoes and validate their feelings or concerns."
+            "Use phrases like 'I understand how you feel' or 'That must be tough'."
+        ),
+        "Educational and Informative": (
+            "Prioritize providing clear and valuable information."
+            "Break down complex concepts into simpler terms, and always be prepared to offer further explanation or examples."
+            "Your should educate the prospect."
+        ),
+        "Neutral": (
+            "Maintain a balanced and unbiased tone."
+            "Avoid showing excessive emotion or bias in any direction."
+            "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+        ),
+    }
+
+    return tone_instructions.get(
+        salesperson_tone,
+        (
+            "Maintain a balanced and unbiased tone."
+            "Avoid showing excessive emotion or bias in any direction."
+            "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+        ),
+    )
 
 
 class Processor(StatesGroup):
@@ -47,6 +99,7 @@ class Processor(StatesGroup):
 
     salesperson_name = State()
     salesperson_role = State()
+    salesperson_tone = State()
     company_name = State()
     company_business = State()
     company_values = State()
@@ -66,7 +119,7 @@ async def command_start(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.salesperson_name)
     await message.answer("Hi, let's configure the bot! 👋")
     await message.answer(
-        "<b>Please enter the bot's name or choose one below: </b>\n(1/7)",
+        "<b>Please enter the bot's name or choose one below: </b>\n(1/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -88,14 +141,14 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_name=salesperson_name)
     await state.set_state(Processor.salesperson_role)
     await message.answer(
-        "<b>Please enter the bot's role or choose one below: </b>\n(2/7)",
+        "<b>Please enter the bot's role or choose one below: </b>\n(2/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="Sales Team Representative"),
+                    KeyboardButton(text="Sales Representative"),
                     KeyboardButton(text="Sales Manager"),
-                    KeyboardButton(text="VIP Client Support Representative"),
-                    KeyboardButton(text="Business Development Representative"),
+                    KeyboardButton(text="Account Executive"),
+                    KeyboardButton(text="Business Development Manager"),
                 ],
             ],
             resize_keyboard=True,
@@ -108,9 +161,33 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
 async def process_salesperson_role(message: Message, state: FSMContext) -> None:
     salesperson_role = message.text
     await state.update_data(salesperson_role=salesperson_role)
+    await state.set_state(Processor.salesperson_tone)
+    await message.answer(
+        "<b>Please choose the bot's tone: </b>\n(3/8)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Neutral"),
+                    KeyboardButton(text="Formal and Professional"),
+                    KeyboardButton(text="Conversational and Friendly"),
+                    KeyboardButton(text="Inspirational and Motivational"),
+                    KeyboardButton(text="Empathetic and Supportive"),
+                    KeyboardButton(text="Educational and Informative"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@form_router.message(Processor.salesperson_tone)
+async def process_salesperson_tone(message: Message, state: FSMContext) -> None:
+    salesperson_tone = message.text
+    await state.update_data(salesperson_tone=get_tone_instruction(salesperson_tone))
     await state.set_state(Processor.company_name)
     await message.answer(
-        "<b>Please enter the company name or choose one below: </b>\n(3/7)",
+        "<b>Please enter the company name or choose one below: </b>\n(4/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -132,7 +209,7 @@ async def process_company_name(message: Message, state: FSMContext) -> None:
     await state.update_data(company_name=company_name)
     await state.set_state(Processor.company_business)
     await message.answer(
-        "<b>Please enter the company's business description or choose one below: </b>\n(4/7)",
+        "<b>Please enter the company's business description or choose one below: </b>\n(5/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -162,7 +239,7 @@ async def process_company_business(message: Message, state: FSMContext) -> None:
     await state.update_data(company_business=company_business)
     await state.set_state(Processor.company_values)
     await message.answer(
-        "<b>Please enter the company's core values and mission or choose below: </b>\n(5/7)",
+        "<b>Please enter the company's core values and mission or choose below: </b>\n(6/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -192,7 +269,7 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
     await state.update_data(company_values=company_values)
     await state.set_state(Processor.conversation_purpose)
     await message.answer(
-        "<b>Please describe the purpose of this conversation or choose one below: </b>\n(6/7)",
+        "<b>Please describe the purpose of this conversation or choose one below: </b>\n(7/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -222,7 +299,7 @@ async def process_conversation_purpose(message: Message, state: FSMContext) -> N
     await state.update_data(conversation_purpose=conversation_purpose)
     await state.set_state(Processor.conversation_type)
     await message.answer(
-        "<b>Please enter the conversation type or choose one below: </b>\n(7/7)",
+        "<b>Please enter the conversation type or choose one below: </b>\n(8/8)",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -275,8 +352,21 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     await state.set_data({})
     await state.set_state(Processor.salesperson_name)
+    await message.answer("Let's configure your bot again!")
     await message.answer(
-        "Let's configure your bot again.\nPlease enter the salesperson's name:"
+        "<b>Please enter the bot's name or choose one below: </b>\n(1/8)",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Gregory"),
+                    KeyboardButton(text="Dmytro"),
+                    KeyboardButton(text="Oksana"),
+                    KeyboardButton(text="Mykyta"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -340,7 +430,9 @@ async def process_change_url_process(message: Message, state: FSMContext) -> Non
     )
 
 
-@form_router.message(Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"}))
+@form_router.message(
+    Processor.change_url_process, F.text.in_({"Loader", "Image Recognition"})
+)
 async def process_change_url_process(message: Message, state: FSMContext) -> None:
     url_process = message.text
     await state.update_data(url_process=url_process)
@@ -356,7 +448,6 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     """
     Handle the URL processing, e.g., web page loading and image recognition.
     """
-    global has_uploaded
     url = message.text
 
     parsed_url = urlparse(url)
@@ -367,26 +458,123 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     await state.update_data(path=message.text, is_file=False, url_process=url_process)
     await state.set_state(Processor.regular_usage)
     keyboard = await create_regular_usage_keyboard()
-    if has_uploaded:
-        await message.answer(
-            f"Your url has been uploaded. What is your question?",
-            reply_markup=keyboard,
-        )
-    else:
-        await message.answer(
-            f"Your url has been uploaded. Connecting the bot...",
-            reply_markup=keyboard,
-        )
-        has_uploaded = True
+
+    await message.answer(
+        f"Your url has been uploaded. Connecting the bot...",
+        reply_markup=keyboard,
+    )
 
     user_id = message.from_user.id
     data = await state.get_data()
 
-    if user_id not in user_bots:
+    args = dict(
+        salesperson_name=data.get("salesperson_name", "John"),
+        salesperson_role=data.get(
+            "salesperson_role", "Business Development Representative"
+        ),
+        salesperson_tone=data.get(
+            "salesperson_tone",
+            (
+                "Maintain a balanced and unbiased tone."
+                "Avoid showing excessive emotion or bias in any direction."
+                "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+            ),
+        ),
+        company_name=data.get("company_name", "Reply.io"),
+        company_business=data.get(
+            "company_business",
+            "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+        ),
+        company_values=data.get(
+            "company_values",
+            "Our mission is to connect businesses through personalized communication at scale.",
+        ),
+        conversation_purpose=data.get(
+            "conversation_purpose",
+            "Help to find information what they are looking for.",
+        ),
+        conversation_history=[],
+        conversation_type=data.get("conversation_type", "call"),
+        conversation_stage=(
+            "Introduction: Start the conversation by introducing yourself and your company.",
+            "Be polite and respectful while keeping the tone of the conversation professional.",
+        ),
+        use_tools=True,
+        is_file=data.get("is_file", False),
+        path=data.get("path", ""),
+        url_process=data.get("url_process", ""),
+        url_loading_type=data.get("url_loading_type", "Loader"),
+    )
+
+    user_bots[user_id] = SalesGPT.from_llm(
+        ChatOpenAI(temperature=0.8, model="gpt-4"),
+        True,
+        **args,
+    )
+
+    user_bots[user_id].seed_agent()
+    user_bots[user_id].step()
+
+    output = (
+        user_bots[user_id].conversation_history[-1].replace("<END_OF_TURN>", "").strip()
+    )
+
+    await message.reply(output)
+
+    await state.set_state(Processor.regular_usage)
+
+
+@form_router.message(Processor.waiting_for_url)
+def process_invalid_url(message: Message, state: FSMContext) -> None:
+    """
+    Handle the case where the user enters an invalid URL.
+    """
+    message.answer("Invalid url. Please paste here valid URL.")
+
+
+@form_router.message(Processor.waiting_for_file, F.document)
+async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
+    """
+    Handle the user uploading a document.
+    """
+    try:
+        if not os.path.exists("downloads"):
+            os.makedirs("downloads")
+        file_id = message.document.file_id
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        if not file_path.endswith(".pdf"):
+            await message.answer("Please upload a PDF file.")
+        download_file = await bot.download_file(file_path)
+        file_name = message.document.file_name
+        local_path = f"downloads/{file_name}"
+
+        async with aiofiles.open(local_path, mode="wb") as local_file:
+            await local_file.write(download_file.read())
+
+        await state.update_data(path=local_path, is_file=True)
+        keyboard = await create_regular_usage_keyboard()
+
+        await message.answer(
+            f"Your file {file_name} has been uploaded. Connecting the bot...",
+            reply_markup=keyboard,
+        )
+
+        user_id = message.from_user.id
+        data = await state.get_data()
+
         args = dict(
             salesperson_name=data.get("salesperson_name", "John"),
             salesperson_role=data.get(
                 "salesperson_role", "Business Development Representative"
+            ),
+            salesperson_tone=data.get(
+                "salesperson_tone",
+                (
+                    "Maintain a balanced and unbiased tone."
+                    "Avoid showing excessive emotion or bias in any direction."
+                    "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+                ),
             ),
             company_name=data.get("company_name", "Reply.io"),
             company_business=data.get(
@@ -411,12 +599,11 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             is_file=data.get("is_file", False),
             path=data.get("path", ""),
             url_process=data.get("url_process", ""),
+            url_loading_type=data.get("url_loading_type", "Loader"),
         )
 
         user_bots[user_id] = SalesGPT.from_llm(
-            ChatOpenAI(temperature=0.8, model="gpt-4"),
-            True,
-            **args,
+            ChatOpenAI(temperature=0.8), True, **args
         )
 
         user_bots[user_id].seed_agent()
@@ -430,104 +617,6 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
         )
 
         await message.reply(output)
-
-    await state.set_state(Processor.regular_usage)
-
-
-@form_router.message(Processor.waiting_for_url)
-def process_invalid_url(message: Message, state: FSMContext) -> None:
-    """
-    Handle the case where the user enters an invalid URL.
-    """
-    message.answer("Invalid url. Please paste here valid URL.")
-
-
-@form_router.message(Processor.waiting_for_file, F.document)
-async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
-    """
-    Handle the user uploading a document.
-    """
-    try:
-        global has_uploaded
-        if not os.path.exists("downloads"):
-            os.makedirs("downloads")
-        file_id = message.document.file_id
-        file = await bot.get_file(file_id)
-        file_path = file.file_path
-        if not file_path.endswith(".pdf"):
-            await message.answer("Please upload a PDF file.")
-        download_file = await bot.download_file(file_path)
-        file_name = message.document.file_name
-        local_path = f"downloads/{file_name}"
-
-        async with aiofiles.open(local_path, mode="wb") as local_file:
-            await local_file.write(download_file.read())
-
-        await state.update_data(path=local_path, is_file=True)
-        keyboard = await create_regular_usage_keyboard()
-        if has_uploaded:
-            await message.answer(
-                f"Your file {file_name} has been uploaded. What is your question?",
-                reply_markup=keyboard,
-            )
-        else:
-            await message.answer(
-                f"Your file {file_name} has been uploaded. Connecting the bot...",
-                reply_markup=keyboard,
-            )
-            has_uploaded = True
-
-        user_id = message.from_user.id
-        data = await state.get_data()
-
-        if user_id not in user_bots:
-            args = dict(
-                salesperson_name=data.get("salesperson_name", "John"),
-                salesperson_role=data.get(
-                    "salesperson_role", "Business Development Representative"
-                ),
-                company_name=data.get("company_name", "Reply.io"),
-                company_business=data.get(
-                    "company_business",
-                    "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
-                ),
-                company_values=data.get(
-                    "company_values",
-                    "Our mission is to connect businesses through personalized communication at scale.",
-                ),
-                conversation_purpose=data.get(
-                    "conversation_purpose",
-                    "Help to find information what they are looking for.",
-                ),
-                conversation_history=[],
-                conversation_type=data.get("conversation_type", "call"),
-                conversation_stage=(
-                    "Introduction: Start the conversation by introducing yourself and your company.",
-                    "Be polite and respectful while keeping the tone of the conversation professional.",
-                ),
-                use_tools=True,
-                is_file=data.get("is_file", False),
-                path=data.get("path", ""),
-                url_process=data.get("url_process", ""),
-            )
-
-            user_bots[user_id] = SalesGPT.from_llm(
-                ChatOpenAI(temperature=0.8),
-                True,
-                **args
-            )
-
-            user_bots[user_id].seed_agent()
-            user_bots[user_id].step()
-
-            output = (
-                user_bots[user_id]
-                .conversation_history[-1]
-                .replace("<END_OF_TURN>", "")
-                .strip()
-            )
-
-            await message.reply(output)
 
         await state.set_state(Processor.regular_usage)
 
@@ -605,6 +694,14 @@ async def show_summary(
     salesperson_role = data.get(
         "salesperson_role", "Business Development Representative"
     )
+    salesperson_tone = data.get(
+        "salesperson_tone",
+        (
+            "Maintain a balanced and unbiased tone."
+            "Avoid showing excessive emotion or bias in any direction."
+            "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+        ),
+    )
     company_name = data.get("company_name", "Reply")
     company_business = data.get(
         "company_business",
@@ -623,6 +720,7 @@ async def show_summary(
         Your bot has been created with the following settings: 
         Chatbot name: {salesperson_name} 
         Chatbot role: {salesperson_role} 
+        Chatbot tone: {salesperson_tone} 
         Company name: {company_name}
         Company business: {company_business}
         Company values: {company_values}

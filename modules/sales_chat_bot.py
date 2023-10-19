@@ -258,6 +258,7 @@ class SalesConversationChain(LLMChain):
         You work at company named {company_name}. {company_name}'s business is the following: {company_business}
         Company values are the following. {company_values}
         You are contacting a potential customer in order to {conversation_purpose}
+        Rules of your tone: {salesperson_tone}
         
         If you're asked about where you got the user's contact information, say that you got it from public records.
         Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
@@ -281,6 +282,7 @@ class SalesConversationChain(LLMChain):
             input_variables=[
                 "salesperson_name",
                 "salesperson_role",
+                "salesperson_tone",
                 "company_name",
                 "company_business",
                 "company_values",
@@ -371,6 +373,7 @@ Try to force the user to achieve your goal, your main goal is: {conversation_pur
 Never forget your name is {salesperson_name}. You work as a {salesperson_role}.
 You work at company named {company_name}. {company_name}'s business is the following: {company_business}.
 Company values are the following. {company_values}
+Rules of your tone: {salesperson_tone}
 
 If you're asked about where you got the user's contact information, say that you got it from public records.
 Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
@@ -447,6 +450,11 @@ class SalesGPT(Chain):
 
     salesperson_name: str = "Ted Lasso"
     salesperson_role: str = "Business Development Representative"
+    salesperson_tone: str = (
+        "Maintain a balanced and unbiased tone."
+        "Avoid showing excessive emotion or bias in any direction."
+        "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+    )
     company_name: str = "Sleep Haven"
     company_business: str = "Sleep Haven is a premium mattress company that provides customers with the most comfortable and supportive sleeping experience possible. We offer a range of high-quality mattresses, pillows, and bedding accessories that are designed to meet the unique needs of our customers."
     company_values: str = "Our mission at Sleep Haven is to help people achieve a better night's sleep by providing them with the best possible sleep solutions. We believe that quality sleep is essential to overall health and well-being, and we are committed to helping our customers achieve optimal sleep by offering exceptional products and customer service."
@@ -502,6 +510,7 @@ class SalesGPT(Chain):
                 conversation_history="\n".join(self.conversation_history),
                 salesperson_name=self.salesperson_name,
                 salesperson_role=self.salesperson_role,
+                salesperson_tone=self.salesperson_tone,
                 company_name=self.company_name,
                 company_business=self.company_business,
                 company_values=self.company_values,
@@ -512,6 +521,7 @@ class SalesGPT(Chain):
             ai_message = self.sales_conversation_utterance_chain.run(
                 salesperson_name=self.salesperson_name,
                 salesperson_role=self.salesperson_role,
+                salesperson_tone=self.salesperson_tone,
                 company_name=self.company_name,
                 company_business=self.company_business,
                 company_values=self.company_values,
@@ -564,6 +574,7 @@ class SalesGPT(Chain):
                     "intermediate_steps",
                     "salesperson_name",
                     "salesperson_role",
+                    "salesperson_tone",
                     "company_name",
                     "company_business",
                     "company_values",
