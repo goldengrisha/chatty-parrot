@@ -8,9 +8,6 @@ import logging
 from enum import Enum
 from typing import Dict, List, Any, Union, Callable
 
-from PIL import Image
-from selenium import webdriver
-
 from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
@@ -31,17 +28,51 @@ from langchain.prompts.base import StringPromptTemplate
 from langchain.agents.agent import AgentOutputParser
 from langchain.agents.conversational.prompt import FORMAT_INSTRUCTIONS
 from langchain.schema import AgentAction, AgentFinish
-
+from PIL import Image
+from selenium import webdriver
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
 
+class SalesBotConversationPurpose(Enum):
+    DEMO = "book a demo"
+    TRIAL = "setup a trial"
+    CONTACTS = "get contacts"
+
+
+class FileType(Enum):
+    PDF_FILE = 1
+    URL = 2
+
+
+class UrlLoadingType(Enum):
+    RECOGNITION = 1
+    HTML_PARSING = 2
+
+
+class SalesBotVoiceTone(Enum):
+    NEUTRAL = "Neutral"
+    FORMAL_AND_PROFESSIONAL = "Formal and Professional"
+    CONVERSATIONAL_AND_FRIENDLY = "Conversational and Friendly"
+    INSPIRATIONAL_AND_MOTIVATIONAL = "Inspirational and Motivational"
+    EMPATHETIC_AND_SUPPORTIVE = "Empathetic and Supportive"
+    EDUCATIONAL_AND_INFORMATIVE = "Educational and Informative"
+
+
+class SalesBotResponseSize(Enum):
+    SMALL = 50
+    MEDIUM = 250
+    LARGE = 500
+
+
 class RetrievalChatBot:
-    def __init__(self, is_file: bool, path: str, url_loading_type: str) -> None:
+    def __init__(
+        self, file_type: FileType, path: str, url_loading_type: UrlLoadingType
+    ) -> None:
         documents = []
-        if is_file:
+        if FileType.PDF_FILE == file_type:
             documents = self.load_pdf(path)
         else:
             if UrlLoadingType.RECOGNITION == url_loading_type:
@@ -291,8 +322,10 @@ class SalesConversationChain(LLMChain):
         return cls(prompt=prompt, llm=llm, verbose=verbose)
 
 
-def get_tools(is_file: bool, path: str, url_loading_type: str) -> List[Tool]:
-    knowledge_base = RetrievalChatBot(is_file, path, url_loading_type)
+def get_tools(
+    file_type: FileType, path: str, url_loading_type: UrlLoadingType
+) -> List[Tool]:
+    knowledge_base = RetrievalChatBot(file_type, path, url_loading_type)
     tools = [
         Tool(
             name="ProductSearch",
@@ -330,9 +363,6 @@ class CustomPromptTemplateForTools(StringPromptTemplate):
         # Create a list of tool names for the tools provided
         kwargs["tool_names"] = ", ".join([tool.name for tool in tools])
         return self.template.format(**kwargs)
-
-
-# Define a custom Output Parser
 
 
 class SalesConversationOutputParser(AgentOutputParser):
@@ -436,7 +466,6 @@ class SalesGPT(Chain):
     stage_analyzer_chain: StageAnalyzerChain = Field(...)
     sales_conversation_utterance_chain: SalesConversationChain = Field(...)
     sales_agent_executor: Union[AgentExecutor, None] = Field(...)
-    use_tools: bool = False
     conversation_stage_dict: Dict = {
         "1": "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming. Always clarify in your greeting the reason why you are contacting the prospect.",
         "2": "Qualification: Qualify the prospect by confirming if they are the right person to talk to regarding your product/service. Ensure that they have the authority to make purchasing decisions.",
@@ -501,36 +530,19 @@ class SalesGPT(Chain):
 
         self.determine_conversation_stage()
 
-        # Generate agent's utterance
-        if self.use_tools:
-            ai_message = self.sales_agent_executor.run(
-                input="",
-                conversation_stage=self.current_conversation_stage,
-                conversation_history="\n".join(self.conversation_history),
-                salesperson_name=self.salesperson_name,
-                salesperson_role=self.salesperson_role,
-                salesperson_tone=self.salesperson_tone,
-                company_name=self.company_name,
-                company_business=self.company_business,
-                company_values=self.company_values,
-                conversation_purpose=self.conversation_purpose,
-                sales_bot_response_size=SalesBotResponseSize.SMALL.value,
-
-            )
-
-        else:
-            ai_message = self.sales_conversation_utterance_chain.run(
-                salesperson_name=self.salesperson_name,
-                salesperson_role=self.salesperson_role,
-                salesperson_tone=self.salesperson_tone,
-                company_name=self.company_name,
-                company_business=self.company_business,
-                company_values=self.company_values,
-                conversation_purpose=self.conversation_purpose,
-                conversation_history="\n".join(self.conversation_history),
-                conversation_stage=self.current_conversation_stage,
-                sales_bot_response_size=SalesBotResponseSize.SMALL.value,
-            )
+        ai_message = self.sales_agent_executor.run(
+            input="",
+            conversation_stage=self.current_conversation_stage,
+            conversation_history="\n".join(self.conversation_history),
+            salesperson_name=self.salesperson_name,
+            salesperson_role=self.salesperson_role,
+            salesperson_tone=self.salesperson_tone,
+            company_name=self.company_name,
+            company_business=self.company_business,
+            company_values=self.company_values,
+            conversation_purpose=self.conversation_purpose,
+            sales_bot_response_size=SalesBotResponseSize.SMALL.value,
+        )
 
         # Add agent's response to conversation history
         print(f"{self.salesperson_name}: ", ai_message.rstrip("<END_OF_TURN>"))
@@ -546,66 +558,60 @@ class SalesGPT(Chain):
     def from_llm(cls, llm: BaseLLM, verbose: bool = False, **kwargs) -> "SalesGPT":
         """Initialize the SalesGPT Controller."""
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
-
         sales_conversation_utterance_chain = SalesConversationChain.from_llm(
             llm, verbose=verbose
         )
 
-        if not "is_file" in kwargs.keys() or not "path" in kwargs.keys():
-            raise Exception("please add is_file or path to kwargs")
+        if (
+            not "file_type" in kwargs.keys()
+            or not "path" in kwargs.keys()
+            or not "url_loading_type" in kwargs.keys()
+        ):
+            raise Exception("please add file_type, path or url_loading_type to kwargs")
 
-        if "use_tools" in kwargs.keys() and kwargs["use_tools"] is False:
-            sales_agent_executor = None
+        file_type = kwargs["file_type"]
+        file_path = kwargs["path"]
+        url_loading_type = kwargs["url_loading_type"]
 
-        else:
-            is_file = kwargs["is_file"]
-            file_path = kwargs["path"]
-            url_loading_type = kwargs["url_loading_type"]
-            # product_catalog = kwargs["product_catalog"]
-            tools = get_tools(
-                is_file=is_file, path=file_path, url_loading_type=url_loading_type
-            )
-
-            prompt = CustomPromptTemplateForTools(
-                template=SALES_AGENT_TOOLS_PROMPT,
-                tools_getter=lambda x: tools,
-                # This omits the `agent_scratchpad`, `tools`, and `tool_names` variables because those are generated dynamically
-                # This includes the `intermediate_steps` variable because that is needed
-                input_variables=[
-                    "input",
-                    "intermediate_steps",
-                    "salesperson_name",
-                    "salesperson_role",
-                    "salesperson_tone",
-                    "company_name",
-                    "company_business",
-                    "company_values",
-                    "conversation_purpose",
-                    "conversation_history",
-                    "sales_bot_response_size",
-                ],
-            )
-            llm_chain = LLMChain(llm=llm, prompt=prompt, verbose=verbose)
-
-            tool_names = [tool.name for tool in tools]
-
-            # WARNING: this output parser is NOT reliable yet
-            ## It makes assumptions about output from LLM which can break and throw an error
-            output_parser = SalesConversationOutputParser(
-                ai_prefix=kwargs["salesperson_name"]
-            )
-
-            sales_agent_with_tools = LLMSingleActionAgent(
-                llm_chain=llm_chain,
-                output_parser=output_parser,
-                stop=["\nObservation:"],
-                allowed_tools=tool_names,
-                verbose=verbose,
-            )
-
-            sales_agent_executor = AgentExecutor.from_agent_and_tools(
-                agent=sales_agent_with_tools, tools=tools, verbose=verbose
-            )
+        tools = get_tools(
+            file_type=file_type, path=file_path, url_loading_type=url_loading_type
+        )
+        prompt = CustomPromptTemplateForTools(
+            template=SALES_AGENT_TOOLS_PROMPT,
+            tools_getter=lambda x: tools,
+            # This omits the `agent_scratchpad`, `tools`, and `tool_names` variables because those are generated dynamically
+            # This includes the `intermediate_steps` variable because that is needed
+            input_variables=[
+                "input",
+                "intermediate_steps",
+                "salesperson_name",
+                "salesperson_role",
+                "salesperson_tone",
+                "company_name",
+                "company_business",
+                "company_values",
+                "conversation_purpose",
+                "conversation_history",
+                "sales_bot_response_size",
+            ],
+        )
+        llm_chain = LLMChain(llm=llm, prompt=prompt, verbose=verbose)
+        tool_names = [tool.name for tool in tools]
+        # WARNING: this output parser is NOT reliable yet
+        ## It makes assumptions about output from LLM which can break and throw an error
+        output_parser = SalesConversationOutputParser(
+            ai_prefix=kwargs["salesperson_name"]
+        )
+        sales_agent_with_tools = LLMSingleActionAgent(
+            llm_chain=llm_chain,
+            output_parser=output_parser,
+            stop=["\nObservation:"],
+            allowed_tools=tool_names,
+            verbose=verbose,
+        )
+        sales_agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=sales_agent_with_tools, tools=tools, verbose=verbose
+        )
 
         return cls(
             stage_analyzer_chain=stage_analyzer_chain,
@@ -614,29 +620,3 @@ class SalesGPT(Chain):
             verbose=verbose,
             **kwargs,
         )
-
-
-class SalesBotConversationPurpose(Enum):
-    DEMO = "book a demo"
-    TRIAL = "setup a trial"
-    CONTACTS = "get contacts"
-
-
-class UrlLoadingType(Enum):
-    RECOGNITION = 1
-    HTML_PARSING = 2
-
-
-class SalesBotVoiceTone(Enum):
-    NEUTRAL = "Neutral"
-    FORMAL_AND_PROFESSIONAL = "Formal and Professional"
-    CONVERSATIONAL_AND_FRIENDLY = "Conversational and Friendly"
-    INSPIRATIONAL_AND_MOTIVATIONAL = "Inspirational and Motivational"
-    EMPATHETIC_AND_SUPPORTIVE = "Empathetic and Supportive"
-    EDUCATIONAL_AND_INFORMATIVE = "Educational and Informative"
-
-
-class SalesBotResponseSize(Enum):
-    SMALL = 50
-    MEDIUM = 250
-    LARGE = 500
