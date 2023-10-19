@@ -622,8 +622,8 @@ class ConversationPurpose(Enum):
 class UrlLoadingType(Enum):
     RECOGNITION = 1
     HTML_PARSING = 2
-    
-    
+
+
 class VoiceTone(Enum):
     NEUTRAL = "Neutral"
     FORMAL_AND_PROFESSIONAL = "Formal and Professional"
@@ -631,3 +631,9 @@ class VoiceTone(Enum):
     INSPIRATIONAL_AND_MOTIVATIONAL = "Inspirational and Motivational"
     EMPATHETIC_AND_SUPPORTIVE = "Empathetic and Supportive"
     EDUCATIONAL_AND_INFORMATIVE = "Educational and Informative"
+
+
+class ResponseSize(Enum):
+    SMALL = 50
+    MEDIUM = 250
+    LARGE = 500
