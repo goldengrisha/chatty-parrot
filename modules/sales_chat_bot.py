@@ -1,7 +1,7 @@
 import os
 import re
 
-from typing import Dict, List, Any, Union, Callable, Optional
+from typing import Dict, List, Any, Union, Callable
 
 import pytesseract
 import requests
@@ -11,7 +11,7 @@ from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
 from langchain.embeddings import HuggingFaceEmbeddings
-from pydantic import BaseModel, Field
+from pydantic import Field
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.llms import BaseLLM
@@ -37,16 +37,15 @@ load_dotenv()
 
 
 class RetrievalChatBot:
-    def __init__(self, is_file: bool, path: str) -> None:
+    def __init__(self, is_file: bool, path: str, url_process: str) -> None:
         documents = []
         if is_file:
             documents = self.load_pdf(path)
         else:
-            documents = self.load_url(path)
-            # if url_process == "Loader":
-            #     documents = self.load_url(path)
-            # elif url_process == "Image Recognition":
-            #     documents = self.read_url_webdriver_screenshot(path)
+            if url_process == "Image Recognition":
+                documents = self.read_url_webdriver_screenshot(path)
+            elif url_process == "Loader":
+                documents = self.load_url(path)
 
         model = ChatOpenAI(temperature=0, model_name="gpt-4")
         embeddings = self.get_embeddings()
@@ -354,14 +353,14 @@ def setup_knowledge_base(product_catalog: str) -> RetrievalQA:
     return knowledge_base
 
 
-def get_tools(is_file: bool, path: str):
+def get_tools(is_file: bool, path: str, url_process: str) -> List[Tool]:
     # query to get_tools can be used to be embedded and relevant tools found
     # see here: https://langchain-langchain.vercel.app/docs/use_cases/agents/custom_agent_with_plugin_retrieval#tool-retriever
 
     # we only use one tool for now, but this is highly extensible!
     # knowledge_base = setup_knowledge_base(product_catalog)
 
-    knowledge_base = RetrievalChatBot(is_file, path)
+    knowledge_base = RetrievalChatBot(is_file, path, url_process)
 
     tools = [
         Tool(
@@ -631,8 +630,9 @@ class SalesGPT(Chain):
         else:
             is_file = kwargs["is_file"]
             file_path = kwargs["path"]
+            url_process = kwargs["url_process"]
             # product_catalog = kwargs["product_catalog"]
-            tools = get_tools(is_file=is_file, path=file_path)
+            tools = get_tools(is_file=is_file, path=file_path, url_process=url_process)
 
             prompt = CustomPromptTemplateForTools(
                 template=SALES_AGENT_TOOLS_PROMPT,

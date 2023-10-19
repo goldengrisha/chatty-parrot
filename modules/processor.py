@@ -4,6 +4,7 @@ import os
 
 from typing import Any, Dict
 
+from aiofiles import tempfile
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
@@ -12,7 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from langchain.chat_models import ChatOpenAI
 from urllib.parse import urlparse
 
-from modules.sales_chat_bot import RetrievalChatBot, SalesGPT
+from modules.sales_chat_bot import SalesGPT
 
 from aiogram.types import (
     KeyboardButton,
@@ -28,6 +29,8 @@ bot = Bot(token=Settings.get_tg_token(), parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 user_bots: Dict[str, SalesGPT] = {}
+global has_uploaded
+has_uploaded = False
 
 
 class Processor(StatesGroup):
@@ -270,7 +273,6 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
     """
     Handle the command to reset the bot's configuration and state.
     """
-    # chat_bot.initialized = False
     await state.set_data({})
     await state.set_state(Processor.salesperson_name)
     await message.answer(
@@ -354,9 +356,9 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     """
     Handle the URL processing, e.g., web page loading and image recognition.
     """
+    global has_uploaded
     url = message.text
 
-    # Check if it's a valid URL
     parsed_url = urlparse(url)
     if not parsed_url.scheme or not parsed_url.netloc:
         await message.answer("Please, paste a valid URL.")
@@ -365,11 +367,17 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
     await state.update_data(path=message.text, is_file=False, url_process=url_process)
     await state.set_state(Processor.regular_usage)
     keyboard = await create_regular_usage_keyboard()
-    await message.answer(
-        # f"Your url has been uploaded. What is your question?",
-        f"Your url has been uploaded. Connecting the bot...",
-        reply_markup=keyboard,
-    )
+    if has_uploaded:
+        await message.answer(
+            f"Your url has been uploaded. What is your question?",
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            f"Your url has been uploaded. Connecting the bot...",
+            reply_markup=keyboard,
+        )
+        has_uploaded = True
 
     user_id = message.from_user.id
     data = await state.get_data()
@@ -402,12 +410,10 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             use_tools=True,
             is_file=data.get("is_file", False),
             path=data.get("path", ""),
+            url_process=data.get("url_process", ""),
         )
 
         user_bots[user_id] = SalesGPT.from_llm(
-            # ChatOpenAI(temperature=0.8),
-            # True,
-            # **args
             ChatOpenAI(temperature=0.8, model="gpt-4"),
             True,
             **args,
@@ -442,9 +448,9 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
     Handle the user uploading a document.
     """
     try:
+        global has_uploaded
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
-        # Download the document
         file_id = message.document.file_id
         file = await bot.get_file(file_id)
         file_path = file.file_path
@@ -453,18 +459,23 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         download_file = await bot.download_file(file_path)
         file_name = message.document.file_name
         local_path = f"downloads/{file_name}"
-        print(local_path)
 
         async with aiofiles.open(local_path, mode="wb") as local_file:
             await local_file.write(download_file.read())
 
         await state.update_data(path=local_path, is_file=True)
         keyboard = await create_regular_usage_keyboard()
-        await message.answer(
-            # f"Your file {file_name} has been uploaded. What is your question?",
-            f"Your file {file_name} has been uploaded. Connecting the bot...",
-            reply_markup=keyboard,
-        )
+        if has_uploaded:
+            await message.answer(
+                f"Your file {file_name} has been uploaded. What is your question?",
+                reply_markup=keyboard,
+            )
+        else:
+            await message.answer(
+                f"Your file {file_name} has been uploaded. Connecting the bot...",
+                reply_markup=keyboard,
+            )
+            has_uploaded = True
 
         user_id = message.from_user.id
         data = await state.get_data()
@@ -497,13 +508,13 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                 use_tools=True,
                 is_file=data.get("is_file", False),
                 path=data.get("path", ""),
+                url_process=data.get("url_process", ""),
             )
 
             user_bots[user_id] = SalesGPT.from_llm(
                 ChatOpenAI(temperature=0.8),
                 True,
                 **args
-                # ChatOpenAI(temperature=0.8, model="gpt-4"), True, **args
             )
 
             user_bots[user_id].seed_agent()
