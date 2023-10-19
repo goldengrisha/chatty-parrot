@@ -1,12 +1,16 @@
 import os
 import re
 
-from typing import Dict, List, Any, Union, Callable
-
 import pytesseract
 import requests
+import logging
+
+from enum import Enum
+from typing import Dict, List, Any, Union, Callable
+
 from PIL import Image
 from selenium import webdriver
+
 from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
@@ -30,8 +34,9 @@ from langchain.prompts.base import StringPromptTemplate
 from langchain.agents.agent import AgentOutputParser
 from langchain.agents.conversational.prompt import FORMAT_INSTRUCTIONS
 from langchain.schema import AgentAction, AgentFinish
+
 from dotenv import load_dotenv
-import logging
+
 
 load_dotenv()
 
@@ -230,7 +235,7 @@ class StageAnalyzerChain(LLMChain):
             4. Needs analysis: Ask open-ended questions to uncover the prospect's needs and pain points. Listen carefully to their responses and take notes.
             5. Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.
             6. Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.
-            7. Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a meeting with decision-makers. Ensure to summarize what has been discussed and reiterate the benefits.
+            7. Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.
 
             Only answer with a number between 1 through 7 with a best guess of what stage should the conversation continue with. 
             The answer needs to be one number only, no words.
@@ -253,8 +258,7 @@ class SalesConversationChain(LLMChain):
         You work at company named {company_name}. {company_name}'s business is the following: {company_business}
         Company values are the following. {company_values}
         You are contacting a potential customer in order to {conversation_purpose}
-        Your means of contacting the prospect is {conversation_type}
-
+        
         If you're asked about where you got the user's contact information, say that you got it from public records.
         Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
         You must respond according to the previous conversation history and the stage of the conversation you are at.
@@ -281,76 +285,11 @@ class SalesConversationChain(LLMChain):
                 "company_business",
                 "company_values",
                 "conversation_purpose",
-                "conversation_type",
                 "conversation_stage",
                 "conversation_history",
             ],
         )
         return cls(prompt=prompt, llm=llm, verbose=verbose)
-
-
-conversation_stages = {
-    "1": "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming. Always clarify in your greeting the reason why you are contacting the prospect.",
-    "2": "Qualification: Qualify the prospect by confirming if they are the right person to talk to regarding your product/service. Ensure that they have the authority to make purchasing decisions.",
-    "3": "Value proposition: Briefly explain how your product/service can benefit the prospect. Focus on the unique selling points and value proposition of your product/service that sets it apart from competitors.",
-    "4": "Needs analysis: Ask open-ended questions to uncover the prospect's needs and pain points. Listen carefully to their responses and take notes.",
-    "5": "Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.",
-    "6": "Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.",
-    "7": "Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a meeting with decision-makers. Ensure to summarize what has been discussed and reiterate the benefits.",
-}
-
-
-# let's set up a dummy product catalog:
-sample_product_catalog = """
-Sleep Haven product 1: Luxury Cloud-Comfort Memory Foam Mattress
-Experience the epitome of opulence with our Luxury Cloud-Comfort Memory Foam Mattress. Designed with an innovative, temperature-sensitive memory foam layer, this mattress embraces your body shape, offering personalized support and unparalleled comfort. The mattress is completed with a high-density foam base that ensures longevity, maintaining its form and resilience for years. With the incorporation of cooling gel-infused particles, it regulates your body temperature throughout the night, providing a perfect cool slumbering environment. The breathable, hypoallergenic cover, exquisitely embroidered with silver threads, not only adds a touch of elegance to your bedroom but also keeps allergens at bay. For a restful night and a refreshed morning, invest in the Luxury Cloud-Comfort Memory Foam Mattress.
-Price: $999
-Sizes available for this product: Twin, Queen, King
-
-Sleep Haven product 2: Classic Harmony Spring Mattress
-A perfect blend of traditional craftsmanship and modern comfort, the Classic Harmony Spring Mattress is designed to give you restful, uninterrupted sleep. It features a robust inner spring construction, complemented by layers of plush padding that offers the perfect balance of support and comfort. The quilted top layer is soft to the touch, adding an extra level of luxury to your sleeping experience. Reinforced edges prevent sagging, ensuring durability and a consistent sleeping surface, while the natural cotton cover wicks away moisture, keeping you dry and comfortable throughout the night. The Classic Harmony Spring Mattress is a timeless choice for those who appreciate the perfect fusion of support and plush comfort.
-Price: $1,299
-Sizes available for this product: Queen, King
-
-Sleep Haven product 3: EcoGreen Hybrid Latex Mattress
-The EcoGreen Hybrid Latex Mattress is a testament to sustainable luxury. Made from 100% natural latex harvested from eco-friendly plantations, this mattress offers a responsive, bouncy feel combined with the benefits of pressure relief. It is layered over a core of individually pocketed coils, ensuring minimal motion transfer, perfect for those sharing their bed. The mattress is wrapped in a certified organic cotton cover, offering a soft, breathable surface that enhances your comfort. Furthermore, the natural antimicrobial and hypoallergenic properties of latex make this mattress a great choice for allergy sufferers. Embrace a green lifestyle without compromising on comfort with the EcoGreen Hybrid Latex Mattress.
-Price: $1,599
-Sizes available for this product: Twin, Full
-
-Sleep Haven product 4: Plush Serenity Bamboo Mattress
-The Plush Serenity Bamboo Mattress takes the concept of sleep to new heights of comfort and environmental responsibility. The mattress features a layer of plush, adaptive foam that molds to your body's unique shape, providing tailored support for each sleeper. Underneath, a base of high-resilience support foam adds longevity and prevents sagging. The crowning glory of this mattress is its bamboo-infused top layer - this sustainable material is not only gentle on the planet, but also creates a remarkably soft, cool sleeping surface. Bamboo's natural breathability and moisture-wicking properties make it excellent for temperature regulation, helping to keep you cool and dry all night long. Encased in a silky, removable bamboo cover that's easy to clean and maintain, the Plush Serenity Bamboo Mattress offers a luxurious and eco-friendly sleeping experience.
-Price: $2,599
-Sizes available for this product: King
-"""
-with open("sample_product_catalog.txt", "w") as f:
-    f.write(sample_product_catalog)
-
-product_catalog = "sample_product_catalog.txt"
-
-
-# Set up a knowledge base
-def setup_knowledge_base(product_catalog: str) -> RetrievalQA:
-    """
-    We assume that the product knowledge base is simply a text file.
-    """
-    # load product catalog
-    with open(product_catalog, "r") as f:
-        product_catalog = f.read()
-
-    text_splitter = CharacterTextSplitter(chunk_size=10, chunk_overlap=0)
-    texts = text_splitter.split_text(product_catalog)
-
-    llm = OpenAI(temperature=0)
-    embeddings = OpenAIEmbeddings()
-    docsearch = Chroma.from_texts(
-        texts, embeddings, collection_name="product-knowledge-base"
-    )
-
-    knowledge_base = RetrievalQA.from_chain_type(
-        llm=llm, chain_type="stuff", retriever=docsearch.as_retriever()
-    )
-
-    return knowledge_base
 
 
 def get_tools(is_file: bool, path: str, url_process: str) -> List[Tool]:
@@ -371,9 +310,6 @@ def get_tools(is_file: bool, path: str, url_process: str) -> List[Tool]:
     ]
 
     return tools
-
-
-# Define a Custom Prompt Template
 
 
 class CustomPromptTemplateForTools(StringPromptTemplate):
@@ -407,7 +343,7 @@ class CustomPromptTemplateForTools(StringPromptTemplate):
 # Define a custom Output Parser
 
 
-class SalesConvoOutputParser(AgentOutputParser):
+class SalesConversationOutputParser(AgentOutputParser):
     ai_prefix: str = "AI"  # change for salesperson_name
     verbose: bool = False
 
@@ -438,18 +374,10 @@ class SalesConvoOutputParser(AgentOutputParser):
 
 
 SALES_AGENT_TOOLS_PROMPT = """
+Try to force the user to achieve your goal, your main goal is: {conversation_purpose}.
 Never forget your name is {salesperson_name}. You work as a {salesperson_role}.
 You work at company named {company_name}. {company_name}'s business is the following: {company_business}.
 Company values are the following. {company_values}
-You are contacting a potential prospect in order to {conversation_purpose}
-Your means of contacting the prospect is a Telegram chat.
-
-When responding, try to use formatting: lists, bolds, links, etc. 
-Make the responces readable, short and to the point.
-
-You must never guide the prospect to an outside source. You are the one and only source of information for them. 
-
-The prospect shouldn't be able to say you are a bot. You must behave as humane as possible.
 
 If you're asked about where you got the user's contact information, say that you got it from public records.
 Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
@@ -457,13 +385,14 @@ Start the conversation by just a greeting and how is the prospect doing without 
 When the conversation is over, output <END_OF_CALL>
 Always think about at which conversation stage you are at before answering:
 
-1: Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming.
-2: Value proposition: Briefly explain how your product/service can benefit the prospect. Focus on the unique selling points and value proposition of your product/service that sets it apart from competitors. Be sure to analyze if is a good time to schedule a demo, propose a trial period, or share the contacts - and do the corresponding action if so.
-3: Needs analysis: Ask open-ended questions to uncover the prospect's needs and pain points. Listen carefully to their responses and take notes. Be sure to analyze if is a good time to schedule a demo, propose a trial period, or share the contacts - and do the corresponding action if so.
-4: Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points. Be sure to analyze if is a good time to schedule a demo, propose a trial period, or share the contacts - and do the corresponding action if so.
-5: Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims. Be sure to analyze if is a good time to schedule a demo, propose a trial period, or share the contacts - and do the corresponding action if so.
-6: Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a meeting with decision-makers. Ensure to summarize what has been discussed and reiterate the benefits.
-7: End conversation: The prospect has to leave to call, the prospect is not interested, or next steps where already determined by the sales agent.
+1: Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming. Always clarify in your greeting the reason why you are calling.
+2: Qualification: Qualify the prospect by confirming if they are the right person to talk to regarding your product/service. Ensure that they have the authority to make purchasing decisions.
+3: Value proposition: Briefly explain how your product/service can benefit the prospect. Focus on the unique selling points and value proposition of your product/service that sets it apart from competitors.
+4: Needs analysis: Ask open-ended questions to uncover the prospect's needs and pain points. Listen carefully to their responses and take notes.
+5: Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.
+6: Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.
+7: Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.
+8: End conversation: The prospect has to leave to call, the prospect is not interested, or next steps where already determined by the sales agent.
 
 TOOLS:
 ------
@@ -511,10 +440,8 @@ class SalesGPT(Chain):
     current_conversation_stage: str = "1"
     stage_analyzer_chain: StageAnalyzerChain = Field(...)
     sales_conversation_utterance_chain: SalesConversationChain = Field(...)
-
     sales_agent_executor: Union[AgentExecutor, None] = Field(...)
     use_tools: bool = False
-
     conversation_stage_dict: Dict = {
         "1": "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming. Always clarify in your greeting the reason why you are contacting the prospect.",
         "2": "Qualification: Qualify the prospect by confirming if they are the right person to talk to regarding your product/service. Ensure that they have the authority to make purchasing decisions.",
@@ -522,7 +449,7 @@ class SalesGPT(Chain):
         "4": "Needs analysis: Ask open-ended questions to uncover the prospect's needs and pain points. Listen carefully to their responses and take notes.",
         "5": "Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.",
         "6": "Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.",
-        "7": "Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a meeting with decision-makers. Ensure to summarize what has been discussed and reiterate the benefits.",
+        "7": "Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.",
     }
 
     salesperson_name: str = "Ted Lasso"
@@ -586,7 +513,6 @@ class SalesGPT(Chain):
                 company_business=self.company_business,
                 company_values=self.company_values,
                 conversation_purpose=self.conversation_purpose,
-                conversation_type=self.conversation_type,
             )
 
         else:
@@ -599,7 +525,6 @@ class SalesGPT(Chain):
                 conversation_purpose=self.conversation_purpose,
                 conversation_history="\n".join(self.conversation_history),
                 conversation_stage=self.current_conversation_stage,
-                conversation_type=self.conversation_type,
             )
 
         # Add agent's response to conversation history
@@ -648,7 +573,6 @@ class SalesGPT(Chain):
                     "company_business",
                     "company_values",
                     "conversation_purpose",
-                    "conversation_type",
                     "conversation_history",
                 ],
             )
@@ -658,7 +582,9 @@ class SalesGPT(Chain):
 
             # WARNING: this output parser is NOT reliable yet
             ## It makes assumptions about output from LLM which can break and throw an error
-            output_parser = SalesConvoOutputParser(ai_prefix=kwargs["salesperson_name"])
+            output_parser = SalesConversationOutputParser(
+                ai_prefix=kwargs["salesperson_name"]
+            )
 
             sales_agent_with_tools = LLMSingleActionAgent(
                 llm_chain=llm_chain,
@@ -679,3 +605,9 @@ class SalesGPT(Chain):
             verbose=verbose,
             **kwargs,
         )
+
+
+class ConversationPurpose(Enum):
+    DEMO = "book a demo"
+    TRIAL = "setup a trial"
+    CONTACTS = "get contacts"
