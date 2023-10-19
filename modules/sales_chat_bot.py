@@ -23,13 +23,10 @@ from langchain.chains.base import Chain
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, LLMSingleActionAgent, AgentExecutor
 from langchain.text_splitter import (
-    CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
-from langchain.llms import OpenAI
 from langchain.prompts.base import StringPromptTemplate
 from langchain.agents.agent import AgentOutputParser
 from langchain.agents.conversational.prompt import FORMAT_INSTRUCTIONS
@@ -376,7 +373,8 @@ Company values are the following. {company_values}
 Rules of your tone: {salesperson_tone}
 
 If you're asked about where you got the user's contact information, say that you got it from public records.
-Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
+Keep your responses in short length to retain the user's attention. 
+Responses never must be longer than {sales_bot_response_size} words. Never produce lists, just answers.
 Start the conversation by just a greeting and how is the prospect doing without pitching in your first turn.
 When the conversation is over, output <END_OF_CALL>
 Always think about at which conversation stage you are at before answering:
@@ -415,6 +413,7 @@ Thought: Do I need to use a tool? No
 ```
 
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
+Ensure that responses are context-specific and do not exceed {sales_bot_response_size} words in length.
 However, if it is possible to move to propose to schedule a demo, propose a trial period, or ask to share the contacts - do so.
 After step 6 (Close) is complete and the prospect doesn't have any more questios, you must move to step 7 and end the conversation.
 Only generate one response at a time and act as {salesperson_name} only!
@@ -515,6 +514,8 @@ class SalesGPT(Chain):
                 company_business=self.company_business,
                 company_values=self.company_values,
                 conversation_purpose=self.conversation_purpose,
+                sales_bot_response_size=SalesBotResponseSize.SMALL.value,
+
             )
 
         else:
@@ -528,6 +529,7 @@ class SalesGPT(Chain):
                 conversation_purpose=self.conversation_purpose,
                 conversation_history="\n".join(self.conversation_history),
                 conversation_stage=self.current_conversation_stage,
+                sales_bot_response_size=SalesBotResponseSize.SMALL.value,
             )
 
         # Add agent's response to conversation history
@@ -580,6 +582,7 @@ class SalesGPT(Chain):
                     "company_values",
                     "conversation_purpose",
                     "conversation_history",
+                    "sales_bot_response_size",
                 ],
             )
             llm_chain = LLMChain(llm=llm, prompt=prompt, verbose=verbose)
