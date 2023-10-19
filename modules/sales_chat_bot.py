@@ -625,7 +625,7 @@ class UrlLoadingType(Enum):
     
     
 class VoiceTone(Enum):
-    NEUTRAL = "neutral"
+    NEUTRAL = "Neutral"
     FORMAL_AND_PROFESSIONAL = "Formal and Professional"
     CONVERSATIONAL_AND_FRIENDLY = "Conversational and Friendly"
     INSPIRATIONAL_AND_MOTIVATIONAL = "Inspirational and Motivational"
