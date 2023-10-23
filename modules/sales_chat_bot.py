@@ -71,8 +71,9 @@ class RetrievalChatBot:
     def __init__(
         self, file_type: FileType, path: str, url_loading_type: UrlLoadingType
     ) -> None:
+        print(file_type, path, url_loading_type)
         documents = []
-        if FileType.PDF_FILE == file_type:
+        if file_type:
             documents = self.load_pdf(path)
         else:
             if UrlLoadingType.RECOGNITION == url_loading_type:
@@ -559,13 +560,13 @@ class SalesGPT(Chain):
         """Initialize the SalesGPT Controller."""
 
         if (
-            not "file_type" in kwargs.keys()
+            not "is_file" in kwargs.keys()
             or not "path" in kwargs.keys()
             or not "url_loading_type" in kwargs.keys()
         ):
             raise Exception("please add file_type, path or url_loading_type to kwargs")
 
-        file_type = kwargs["file_type"]
+        file_type = kwargs["is_file"]
         file_path = kwargs["path"]
         url_loading_type = kwargs["url_loading_type"]
 

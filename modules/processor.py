@@ -502,8 +502,7 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
         use_tools=True,
         is_file=data.get("is_file", False),
         path=data.get("path", ""),
-        url_process=data.get("url_process", ""),
-        url_loading_type=data.get("url_loading_type", "Loader"),
+        url_loading_type=data.get("url_process", "Loader"),
     )
 
     user_bots[user_id] = SalesGPT.from_llm(
@@ -563,60 +562,60 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         user_id = message.from_user.id
         data = await state.get_data()
 
-        args = dict(
-            salesperson_name=data.get("salesperson_name", "John"),
-            salesperson_role=data.get(
-                "salesperson_role", "Business Development Representative"
-            ),
-            salesperson_tone=data.get(
-                "salesperson_tone",
-                (
-                    "Maintain a balanced and unbiased tone."
-                    "Avoid showing excessive emotion or bias in any direction."
-                    "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+        if user_id not in user_bots:
+            args = dict(
+                salesperson_name=data.get("salesperson_name", "John"),
+                salesperson_role=data.get(
+                    "salesperson_role", "Business Development Representative"
                 ),
-            ),
-            company_name=data.get("company_name", "Reply.io"),
-            company_business=data.get(
-                "company_business",
-                "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
-            ),
-            company_values=data.get(
-                "company_values",
-                "Our mission is to connect businesses through personalized communication at scale.",
-            ),
-            conversation_purpose=data.get(
-                "conversation_purpose",
-                "Help to find information what they are looking for.",
-            ),
-            conversation_history=[],
-            conversation_type=data.get("conversation_type", "call"),
-            conversation_stage=(
-                "Introduction: Start the conversation by introducing yourself and your company.",
-                "Be polite and respectful while keeping the tone of the conversation professional.",
-            ),
-            use_tools=True,
-            is_file=data.get("is_file", False),
-            path=data.get("path", ""),
-            url_process=data.get("url_process", ""),
-            url_loading_type=data.get("url_loading_type", "Loader"),
-        )
+                salesperson_tone=data.get(
+                    "salesperson_tone",
+                    (
+                        "Maintain a balanced and unbiased tone."
+                        "Avoid showing excessive emotion or bias in any direction."
+                        "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
+                    ),
+                ),
+                company_name=data.get("company_name", "Reply.io"),
+                company_business=data.get(
+                    "company_business",
+                    "We are your AI-powered sales engagement platform to create new opportunities at scale – automatically.",
+                ),
+                company_values=data.get(
+                    "company_values",
+                    "Our mission is to connect businesses through personalized communication at scale.",
+                ),
+                conversation_purpose=data.get(
+                    "conversation_purpose",
+                    "Help to find information what they are looking for.",
+                ),
+                conversation_history=[],
+                conversation_type=data.get("conversation_type", "call"),
+                conversation_stage=(
+                    "Introduction: Start the conversation by introducing yourself and your company.",
+                    "Be polite and respectful while keeping the tone of the conversation professional.",
+                ),
+                use_tools=True,
+                is_file=data.get("is_file", False),
+                path=data.get("path", ""),
+                url_loading_type=data.get("url_process", "Loader"),
+            )
 
-        user_bots[user_id] = SalesGPT.from_llm(
-            ChatOpenAI(temperature=0.8), True, **args
-        )
+            user_bots[user_id] = SalesGPT.from_llm(
+                ChatOpenAI(temperature=0.8), True, **args
+            )
 
-        user_bots[user_id].seed_agent()
-        user_bots[user_id].step()
+            user_bots[user_id].seed_agent()
+            user_bots[user_id].step()
 
-        output = (
-            user_bots[user_id]
-            .conversation_history[-1]
-            .replace("<END_OF_TURN>", "")
-            .strip()
-        )
+            output = (
+                user_bots[user_id]
+                .conversation_history[-1]
+                .replace("<END_OF_TURN>", "")
+                .strip()
+            )
 
-        await message.reply(output)
+            await message.reply(output)
 
         await state.set_state(Processor.regular_usage)
 
