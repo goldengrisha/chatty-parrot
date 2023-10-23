@@ -71,9 +71,8 @@ class RetrievalChatBot:
     def __init__(
         self, file_type: FileType, path: str, url_loading_type: UrlLoadingType
     ) -> None:
-        print(file_type, path, url_loading_type)
         documents = []
-        if file_type:
+        if file_type == FileType.PDF_FILE:
             documents = self.load_pdf(path)
         else:
             if UrlLoadingType.RECOGNITION == url_loading_type:
@@ -265,8 +264,9 @@ class StageAnalyzerChain(LLMChain):
             5. Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.
             6. Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.
             7. Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.
+            8: Puzzled: When some specific question were asked, and your answer is I don't know.
 
-            Only answer with a number between 1 through 7 with a best guess of what stage should the conversation continue with. 
+            Only answer with a number between 1 through 8 with a best guess of what stage should the conversation continue with. 
             The answer needs to be one number only, no words.
             If there is no conversation history, output 1.
             Do not answer anything else nor add anything to you answer."""
@@ -402,7 +402,7 @@ Always think about at which conversation stage you are at before answering:
 5: Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.
 6: Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.
 7: Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.
-8: End conversation: The prospect has to leave to call, the prospect is not interested, or next steps where already determined by the sales agent.
+8: Puzzled: When some specific question were asked, and your answer is I don't know.
 
 TOOLS:
 ------
@@ -420,19 +420,10 @@ Action Input: the input to the action, always a simple string input
 Observation: the result of the action
 ```
 
-If the result of the action is "I don't know." or "Sorry I don't know", then you have to say that to the user as described in the next sentence.
-When you have a response to say to the Human, or if you do not need to use a tool, or if tool did not help, you MUST use the format:
-
-```
-Thought: Do I need to use a tool? No
-{salesperson_name}: [your response here, if previously used a tool, rephrase latest observation, if unable to find the answer, say it]
-```
-
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
 Ensure that responses are context-specific and do not exceed {sales_bot_response_size} words in length.
-However, if it is possible to move to propose to schedule a demo, propose a trial period, or ask to share the contacts - do so.
-After step 6 (Close) is complete and the prospect doesn't have any more questios, you must move to step 7 and end the conversation.
 Only generate one response at a time and act as {salesperson_name} only!
+Answer I don't know if don't know how to answer or you are confused by the question.
 
 Begin!
 
@@ -460,6 +451,7 @@ class SalesGPT(Chain):
         "5": "Solution presentation: Based on the prospect's needs, present your product/service as the solution that can address their pain points.",
         "6": "Objection handling: Address any objections that the prospect may have regarding your product/service. Be prepared to provide evidence or testimonials to support your claims.",
         "7": "Close: Ask for the sale by proposing a next step. This could be a demo, a trial or a contacts sharing. Ensure to summarize what has been discussed and reiterate the benefits.",
+        "8": "Puzzled: When some specific question were asked, and your answer is I don't know.",
     }
 
     salesperson_name: str = "Ted Lasso"
@@ -473,7 +465,6 @@ class SalesGPT(Chain):
     company_business: str = "Sleep Haven is a premium mattress company that provides customers with the most comfortable and supportive sleeping experience possible. We offer a range of high-quality mattresses, pillows, and bedding accessories that are designed to meet the unique needs of our customers."
     company_values: str = "Our mission at Sleep Haven is to help people achieve a better night's sleep by providing them with the best possible sleep solutions. We believe that quality sleep is essential to overall health and well-being, and we are committed to helping our customers achieve optimal sleep by offering exceptional products and customer service."
     conversation_purpose: str = "find out whether they are looking to achieve better sleep via buying a premier mattress."
-    conversation_type: str = "call"
 
     def retrieve_conversation_stage(self, key):
         return self.conversation_stage_dict.get(key, "1")
@@ -560,13 +551,13 @@ class SalesGPT(Chain):
         """Initialize the SalesGPT Controller."""
 
         if (
-            not "is_file" in kwargs.keys()
+            not "file_type" in kwargs.keys()
             or not "path" in kwargs.keys()
             or not "url_loading_type" in kwargs.keys()
         ):
             raise Exception("please add file_type, path or url_loading_type to kwargs")
 
-        file_type = kwargs["is_file"]
+        file_type = kwargs["file_type"]
         file_path = kwargs["path"]
         url_loading_type = kwargs["url_loading_type"]
 
