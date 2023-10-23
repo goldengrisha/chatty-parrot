@@ -277,52 +277,6 @@ class StageAnalyzerChain(LLMChain):
         return cls(prompt=prompt, llm=llm, verbose=verbose)
 
 
-class SalesConversationChain(LLMChain):
-    """Chain to generate the next utterance for the conversation."""
-
-    @classmethod
-    def from_llm(cls, llm: BaseLLM, verbose: bool = True) -> LLMChain:
-        """Get the response parser."""
-        sales_agent_inception_prompt = """Never forget your name is {salesperson_name}. You work as a {salesperson_role}.
-        You work at company named {company_name}. {company_name}'s business is the following: {company_business}
-        Company values are the following. {company_values}
-        You are contacting a potential customer in order to {conversation_purpose}
-        Rules of your tone: {salesperson_tone}
-        
-        If you're asked about where you got the user's contact information, say that you got it from public records.
-        Keep your responses in short length to retain the user's attention. Never produce lists, just answers.
-        You must respond according to the previous conversation history and the stage of the conversation you are at.
-        Only generate one response at a time! When you are done generating, end with '<END_OF_TURN>' to give the user a chance to respond. 
-        Example:
-        Conversation history: 
-        {salesperson_name}: Hey, how are you? This is {salesperson_name} calling from {company_name}. Do you have a minute? <END_OF_TURN>
-        User: I am well, and yes, why are you calling? <END_OF_TURN>
-        {salesperson_name}:
-        End of example.
-
-        Current conversation stage: 
-        {conversation_stage}
-        Conversation history: 
-        {conversation_history}
-        {salesperson_name}: 
-        """
-        prompt = PromptTemplate(
-            template=sales_agent_inception_prompt,
-            input_variables=[
-                "salesperson_name",
-                "salesperson_role",
-                "salesperson_tone",
-                "company_name",
-                "company_business",
-                "company_values",
-                "conversation_purpose",
-                "conversation_stage",
-                "conversation_history",
-            ],
-        )
-        return cls(prompt=prompt, llm=llm, verbose=verbose)
-
-
 class CustomPromptTemplateForTools(StringPromptTemplate):
     # The template to use
     template: str
@@ -441,7 +395,6 @@ class SalesGPT(Chain):
     conversation_history: List[str] = []
     current_conversation_stage: str = "1"
     stage_analyzer_chain: StageAnalyzerChain = Field(...)
-    sales_conversation_utterance_chain: SalesConversationChain = Field(...)
     sales_agent_executor: Union[AgentExecutor, None] = Field(...)
     conversation_stage_dict: Dict = {
         "1": "Introduction: Start the conversation by introducing yourself and your company. Be polite and respectful while keeping the tone of the conversation professional. Your greeting should be welcoming. Always clarify in your greeting the reason why you are contacting the prospect.",
@@ -603,13 +556,9 @@ class SalesGPT(Chain):
         )
 
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
-        sales_conversation_utterance_chain = SalesConversationChain.from_llm(
-            llm, verbose=verbose
-        )
 
         return cls(
             stage_analyzer_chain=stage_analyzer_chain,
-            sales_conversation_utterance_chain=sales_conversation_utterance_chain,
             sales_agent_executor=sales_agent_executor,
             verbose=verbose,
             **kwargs,
