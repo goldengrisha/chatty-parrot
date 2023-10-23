@@ -72,7 +72,7 @@ class RetrievalChatBot:
         self, file_type: FileType, path: str, url_loading_type: UrlLoadingType
     ) -> None:
         documents = []
-        if file_type == FileType.PDF_FILE:
+        if file_type == FileType.PDF_FILE.value:
             documents = self.load_pdf(path)
         else:
             if UrlLoadingType.RECOGNITION == url_loading_type:

@@ -500,7 +500,7 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             "Be polite and respectful while keeping the tone of the conversation professional.",
         ),
         use_tools=True,
-        is_file=data.get("is_file", False),
+        file_type=data.get("is_file", 2),
         path=data.get("path", ""),
         url_loading_type=data.get("url_process", "Loader"),
     )
@@ -596,7 +596,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                     "Be polite and respectful while keeping the tone of the conversation professional.",
                 ),
                 use_tools=True,
-                is_file=data.get("is_file", False),
+                file_type=data.get("is_file", 2),
                 path=data.get("path", ""),
                 url_loading_type=data.get("url_process", "Loader"),
             )
