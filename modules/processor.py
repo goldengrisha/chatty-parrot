@@ -4,14 +4,19 @@ import os
 
 from typing import Any, Dict
 
+import langid
 from aiofiles import tempfile
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from deep_translator import GoogleTranslator
 from langchain.chat_models import ChatOpenAI
 from urllib.parse import urlparse
+
+from langdetect import detect
+from googletrans import Translator
 
 from modules.sales_chat_bot import SalesGPT
 
@@ -500,7 +505,7 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             "Be polite and respectful while keeping the tone of the conversation professional.",
         ),
         use_tools=True,
-        file_type=data.get("is_file", 2),
+        file_type=data.get("is_file", False),
         path=data.get("path", ""),
         url_loading_type=data.get("url_process", "Loader"),
     )
@@ -596,7 +601,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                     "Be polite and respectful while keeping the tone of the conversation professional.",
                 ),
                 use_tools=True,
-                file_type=data.get("is_file", 2),
+                file_type=data.get("is_file", False),
                 path=data.get("path", ""),
                 url_loading_type=data.get("url_process", "Loader"),
             )
@@ -656,16 +661,27 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
         return
 
     user_id = message.from_user.id
+    user_message = message.text
+    lang, _ = langid.classify(user_message)
+    print("lang", lang)
+    if lang != "en":
+        user_message = GoogleTranslator(source='auto', target='en').translate(user_message)
 
-    user_bots[user_id].human_step(message.text)
+    user_bots[user_id].human_step(user_message)
     user_bots[user_id].step()
 
     output = (
         user_bots[user_id].conversation_history[-1].replace("<END_OF_TURN>", "").strip()
     )
+    language_output, _ = langid.classify(output)
+    print("lang:", lang, "language_output:", language_output)
 
     if "<END_OF_CALL>" in output:
         output = output.replace("<END_OF_CALL>", "")
+
+        if language_output != lang:
+            output = GoogleTranslator(source='auto', target='en').translate(output)
+
         await message.reply(output)
         await state.set_data({})
         await state.set_state(Processor.regular_usage)
@@ -677,6 +693,8 @@ async def process_regular_usage_reset(message: Message, state: FSMContext) -> No
             reply_markup=keyboard,
         )
     else:
+        if language_output != lang:
+            output = GoogleTranslator(source='auto', target=lang).translate(output)
         await message.reply(output)
 
 
