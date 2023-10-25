@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Union, Callable
 from langchain.docstore.document import Document
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA
 from langchain.document_loaders import WebBaseLoader, PyPDFLoader
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
 from pydantic import Field
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
@@ -207,13 +207,9 @@ class RetrievalChatBot:
         Returns:
             Any: Embeddings.
         """
-        model_name = "thenlper/gte-base"
-        model_kwargs = {"device": "cpu"}
-        hf_embedding = HuggingFaceEmbeddings(
-            model_name=model_name, model_kwargs=model_kwargs
-        )
+        embedding = OpenAIEmbeddings(model="text-embedding-ada-002")
 
-        return hf_embedding
+        return embedding
 
     def get_chat_bot(
         self,
@@ -342,7 +338,6 @@ You work at company named {company_name}. {company_name}'s business is the follo
 Company values are the following. {company_values}
 Rules of your tone: {salesperson_tone}
 
-If you're asked about where you got the user's contact information, say that you got it from public records.
 Keep your responses in short length to retain the user's attention. 
 Responses never must be longer than {sales_bot_response_size} words. Never produce lists, just answers.
 Start the conversation by just a greeting and how is the prospect doing without pitching in your first turn.
