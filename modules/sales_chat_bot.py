@@ -490,7 +490,6 @@ class SalesGPT(Chain):
         print(f"Language Code: {self.current_language}")
 
     def human_step(self, human_input):
-        # process human input
         human_input = "User: " + human_input + " <END_OF_TURN>"
         self.conversation_history.append(human_input)
 
@@ -516,7 +515,6 @@ class SalesGPT(Chain):
             company_values=self.company_values,
             conversation_purpose=self.conversation_purpose,
             salesperson_response_size=self.salesperson_response_size.value,
-            salesperson_language=self.salesperson_language,
         )
 
         if "<END_OF_TURN>" not in ai_message:
