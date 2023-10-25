@@ -132,7 +132,7 @@ class RetrievalChatBot:
 
         return []
 
-    def read_url_webdriver_screenshot(self, url: str) -> List[Document] | None:
+    def read_url_recognition(self, url: str) -> List[Document] | None:
         try:
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 

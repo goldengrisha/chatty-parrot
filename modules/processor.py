@@ -5,7 +5,6 @@ import os
 from typing import Any, Dict
 
 import langid
-from aiofiles import tempfile
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
@@ -14,9 +13,6 @@ from aiogram.fsm.state import State, StatesGroup
 from deep_translator import GoogleTranslator
 from langchain.chat_models import ChatOpenAI
 from urllib.parse import urlparse
-
-from langdetect import detect
-from googletrans import Translator
 
 from modules.sales_chat_bot import SalesGPT
 
