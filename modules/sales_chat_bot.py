@@ -273,6 +273,21 @@ class StageAnalyzerChain(LLMChain):
         return cls(prompt=prompt, llm=llm, verbose=verbose)
 
 
+class TranslationChain(LLMChain):
+    """Chain to translate the conversation."""
+
+    @classmethod
+    def from_llm(cls, llm: BaseLLM, verbose: bool = True) -> LLMChain:
+        """Get the response parser."""
+        stage_analyzer_inception_prompt_template = """You are a translator and you need to translate from english: `{bot_output}` to {language}.
+            """
+        prompt = PromptTemplate(
+            template=stage_analyzer_inception_prompt_template,
+            input_variables=["language", "bot_output"],
+        )
+        return cls(prompt=prompt, llm=llm, verbose=verbose)
+
+
 class CustomPromptTemplateForTools(StringPromptTemplate):
     # The template to use
     template: str
@@ -332,6 +347,7 @@ class SalesConversationOutputParser(AgentOutputParser):
 
 
 SALES_AGENT_TOOLS_PROMPT = """
+Before doing something, translate question to English.
 Try to force the user to achieve your goal, your main goal is: {conversation_purpose}.
 Never forget your name is {salesperson_name}. You work as a {salesperson_role}.
 You work at company named {company_name}. {company_name}'s business is the following: {company_business}.
@@ -339,7 +355,7 @@ Company values are the following. {company_values}
 Rules of your tone: {salesperson_tone}
 
 Keep your responses in short length to retain the user's attention. 
-Responses never must be longer than {sales_bot_response_size} words. Never produce lists, just answers.
+Responses never must be longer than {salesperson_response_size} words. Never produce lists, just answers.
 Start the conversation by just a greeting and how is the prospect doing without pitching in your first turn.
 When the conversation is over, output <END_OF_CALL>
 Always think about at which conversation stage you are at before answering:
@@ -359,7 +375,6 @@ TOOLS:
 {salesperson_name} has access to the following tools:
 
 {tools}
-
 To use a tool, you must use the following format:
 
 ```
@@ -370,7 +385,7 @@ Observation: the result of the action
 ```
 
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
-Ensure that responses are context-specific and do not exceed {sales_bot_response_size} words in length.
+Ensure that responses are context-specific and do not exceed {salesperson_response_size} words in length.
 Only generate one response at a time and act as {salesperson_name} only!
 Answer I don't know if don't know how to answer or you are confused by the question.
 
@@ -383,12 +398,16 @@ Previous conversation history:
 {agent_scratchpad}
 """
 
+from langchain.chains import SequentialChain
+
 
 class SalesGPT(Chain):
     """Controller model for the Sales Agent."""
 
     conversation_history: List[str] = []
     current_conversation_stage: str = "1"
+    salesperson_language: str = "english"
+    sales_translation_chain: TranslationChain = Field(...)
     stage_analyzer_chain: StageAnalyzerChain = Field(...)
     sales_agent_executor: Union[AgentExecutor, None] = Field(...)
     conversation_stage_dict: Dict = {
@@ -413,6 +432,7 @@ class SalesGPT(Chain):
     company_business: str = "Sleep Haven is a premium mattress company that provides customers with the most comfortable and supportive sleeping experience possible. We offer a range of high-quality mattresses, pillows, and bedding accessories that are designed to meet the unique needs of our customers."
     company_values: str = "Our mission at Sleep Haven is to help people achieve a better night's sleep by providing them with the best possible sleep solutions. We believe that quality sleep is essential to overall health and well-being, and we are committed to helping our customers achieve optimal sleep by offering exceptional products and customer service."
     conversation_purpose: str = "find out whether they are looking to achieve better sleep via buying a premier mattress."
+    salesperson_response_size: SalesBotResponseSize = SalesBotResponseSize.MEDIUM
 
     def retrieve_conversation_stage(self, key):
         return self.conversation_stage_dict.get(key, "1")
@@ -466,8 +486,13 @@ class SalesGPT(Chain):
             company_business=self.company_business,
             company_values=self.company_values,
             conversation_purpose=self.conversation_purpose,
-            sales_bot_response_size=SalesBotResponseSize.SMALL.value,
+            salesperson_response_size=self.salesperson_response_size.value,
         )
+
+        translated_message = self.sales_translation_chain.run(
+            {"bot_output": ai_message, "language": "ukrainian"}
+        )
+        print("translated message: ", translated_message)
 
         # Add agent's response to conversation history
         print(f"{self.salesperson_name}: ", ai_message.rstrip("<END_OF_TURN>"))
@@ -528,7 +553,7 @@ class SalesGPT(Chain):
                 "company_values",
                 "conversation_purpose",
                 "conversation_history",
-                "sales_bot_response_size",
+                "salesperson_response_size",
             ],
         )
 
@@ -547,12 +572,16 @@ class SalesGPT(Chain):
             verbose=verbose,
         )
         sales_agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=sales_agent_with_tools, tools=tools, verbose=verbose
+            agent=sales_agent_with_tools,
+            tools=tools,
+            verbose=verbose,
         )
 
+        sales_translation_chain = TranslationChain.from_llm(llm, verbose=verbose)
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
         return cls(
+            sales_translation_chain=sales_translation_chain,
             stage_analyzer_chain=stage_analyzer_chain,
             sales_agent_executor=sales_agent_executor,
             verbose=verbose,
