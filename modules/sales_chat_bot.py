@@ -407,7 +407,7 @@ class SalesGPT(Chain):
     conversation_history: List[str] = []
     current_conversation_stage: str = "1"
     salesperson_language: str = "english"
-    sales_translation_chain: TranslationChain = Field(...)
+    translation_chain: TranslationChain = Field(...)
     stage_analyzer_chain: StageAnalyzerChain = Field(...)
     sales_agent_executor: Union[AgentExecutor, None] = Field(...)
     conversation_stage_dict: Dict = {
@@ -487,22 +487,26 @@ class SalesGPT(Chain):
             company_values=self.company_values,
             conversation_purpose=self.conversation_purpose,
             salesperson_response_size=self.salesperson_response_size.value,
+            salesperson_language=self.salesperson_language,
         )
 
-        translated_message = self.sales_translation_chain.run(
-            {"bot_output": ai_message, "language": "ukrainian"}
+        translated_ai_message = self.translation_chain.run(
+            bot_output=ai_message,
+            language=self.salesperson_language,
         )
-        print("translated message: ", translated_message)
+        # print("translated message: ", translated_ai_message)
 
         # Add agent's response to conversation history
-        print(f"{self.salesperson_name}: ", ai_message.rstrip("<END_OF_TURN>"))
+        print(
+            f"{self.salesperson_name}: ", translated_ai_message.rstrip("<END_OF_TURN>")
+        )
 
         agent_name = self.salesperson_name
-        ai_message = agent_name + ": " + ai_message
-        if "<END_OF_TURN>" not in ai_message:
-            ai_message += " <END_OF_TURN>"
+        translated_ai_message = agent_name + ": " + translated_ai_message
+        if "<END_OF_TURN>" not in translated_ai_message:
+            translated_ai_message += " <END_OF_TURN>"
 
-        self.conversation_history.append(ai_message)
+        self.conversation_history.append(translated_ai_message)
 
     @classmethod
     def get_tools(
@@ -577,11 +581,11 @@ class SalesGPT(Chain):
             verbose=verbose,
         )
 
-        sales_translation_chain = TranslationChain.from_llm(llm, verbose=verbose)
+        translation_chain = TranslationChain.from_llm(llm, verbose=verbose)
         stage_analyzer_chain = StageAnalyzerChain.from_llm(llm, verbose=verbose)
 
         return cls(
-            sales_translation_chain=sales_translation_chain,
+            translation_chain=translation_chain,
             stage_analyzer_chain=stage_analyzer_chain,
             sales_agent_executor=sales_agent_executor,
             verbose=verbose,
