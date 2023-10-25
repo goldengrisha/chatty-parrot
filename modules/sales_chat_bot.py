@@ -279,7 +279,7 @@ class TranslationChain(LLMChain):
     @classmethod
     def from_llm(cls, llm: BaseLLM, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
-        stage_analyzer_inception_prompt_template = """You are a translator and you need to translate from english: `{bot_output}` to {language}.
+        stage_analyzer_inception_prompt_template = """You are a translator and you need to translate the following: `{bot_output}` to {language}.
             """
         prompt = PromptTemplate(
             template=stage_analyzer_inception_prompt_template,
