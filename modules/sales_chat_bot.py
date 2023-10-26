@@ -448,7 +448,7 @@ class SalesGPT(Chain):
     company_business: str = "Sleep Haven is a premium mattress company that provides customers with the most comfortable and supportive sleeping experience possible. We offer a range of high-quality mattresses, pillows, and bedding accessories that are designed to meet the unique needs of our customers."
     company_values: str = "Our mission at Sleep Haven is to help people achieve a better night's sleep by providing them with the best possible sleep solutions. We believe that quality sleep is essential to overall health and well-being, and we are committed to helping our customers achieve optimal sleep by offering exceptional products and customer service."
     conversation_purpose: str = "find out whether they are looking to achieve better sleep via buying a premier mattress."
-    salesperson_response_size: SalesBotResponseSize = SalesBotResponseSize.MEDIUM
+    salesperson_response_size: SalesBotResponseSize = SalesBotResponseSize.SMALL.value
 
     def retrieve_conversation_stage(self, key):
         return self.conversation_stage_dict.get(key, "1")

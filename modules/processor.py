@@ -12,6 +12,7 @@ from aiogram.fsm.state import State, StatesGroup
 from langchain.chat_models import ChatOpenAI
 from urllib.parse import urlparse
 
+from modules.enum import SalesBotResponseSize
 from modules.sales_chat_bot import SalesGPT
 
 from aiogram.types import (
@@ -105,6 +106,8 @@ class Processor(StatesGroup):
     conversation_purpose = State()
     conversation_type = State()
     conversation_stage = State()
+    salesperson_response_size = State()
+    conversation_language = State()
 
     async def run(self):
         global bot
@@ -318,9 +321,43 @@ async def process_conversation_purpose(message: Message, state: FSMContext) -> N
 async def process_conversation_type(message: Message, state: FSMContext) -> None:
     conversation_type = message.text
     data = await state.update_data(conversation_type=conversation_type)
+    await state.set_state(Processor.conversation_language)
+    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
+
+    keyboard = await create_language_keyboard()
+
+    await message.answer(
+        "Please, choose conversation language:",
+        reply_markup=keyboard,
+    )
+
+
+@form_router.message(Processor.conversation_language)
+async def process_conversation_language(message: Message, state: FSMContext) -> None:
+    conversation_language = message.text
+    data = await state.update_data(conversation_language=conversation_language)
+    await state.set_state(Processor.salesperson_response_size)
+
+    keyboard = await create_salesperson_response_size()
+
+    await message.answer(
+        "Which response size would you prefer?",
+        reply_markup=keyboard,
+    )
+
+
+@form_router.message(Processor.salesperson_response_size)
+async def process_salesperson_response_size(message: Message, state: FSMContext) -> None:
+    selected_size = message.text
+    if selected_size == "SMALL":
+        salesperson_response_size = SalesBotResponseSize.SMALL.value
+    elif selected_size == "MEDIUM":
+        salesperson_response_size = SalesBotResponseSize.MEDIUM.value
+    elif selected_size == "LARGE":
+        salesperson_response_size = SalesBotResponseSize.LARGE.value
+    data = await state.update_data(salesperson_response_size=salesperson_response_size)
     await state.set_state(Processor.regular_usage)
 
-    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
     keyboard = await create_regular_usage_keyboard()
 
     await message.answer(
@@ -502,6 +539,9 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
         file_type=data.get("is_file", False),
         path=data.get("path", ""),
         url_loading_type=data.get("url_process", "Loader"),
+        salesperson_response_size=data.get(
+            "salesperson_response_size", "Medium"
+        ),
     )
 
     user_bots[user_id] = SalesGPT.from_llm(
@@ -598,6 +638,9 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                 file_type=data.get("is_file", False),
                 path=data.get("path", ""),
                 url_loading_type=data.get("url_process", "Loader"),
+                salesperson_response_size=data.get(
+                    "salesperson_response_size", "SMALL"
+                ),
             )
 
             user_bots[user_id] = SalesGPT.from_llm(
@@ -779,3 +822,35 @@ async def create_regular_usage_keyboard():
         ],
         resize_keyboard=True,
     )
+
+
+async def create_language_keyboard():
+    """
+    Create a custom keyboard for language.
+    """
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="English"),
+                KeyboardButton(text="Another language"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
+async def create_salesperson_response_size():
+    """
+    Create a custom keyboard for size of response.
+    """
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="SMALL"),
+                KeyboardButton(text="MEDIUM"),
+                KeyboardButton(text="LARGE"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
