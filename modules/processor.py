@@ -381,28 +381,6 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
 async def process_conversation_purpose(message: Message, state: FSMContext) -> None:
     conversation_purpose = message.text
     await state.update_data(conversation_purpose=conversation_purpose)
-    await state.set_state(Processor.conversation_type)
-    await message.answer(
-        "<b>Please enter the conversation type or choose one below: </b>",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Telegram Chat"),
-                    KeyboardButton(text="Call"),
-                    KeyboardButton(text="Email"),
-                    KeyboardButton(text="Meeting"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
-        parse_mode=ParseMode.HTML,
-    )
-
-
-@form_router.message(Processor.conversation_type)
-async def process_conversation_type(message: Message, state: FSMContext) -> None:
-    conversation_type = message.text
-    await state.update_data(conversation_type=conversation_type)
     await state.set_state(Processor.salesperson_response_size)
 
     keyboard = await create_salesperson_response_size()
