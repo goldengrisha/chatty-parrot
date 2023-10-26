@@ -133,6 +133,7 @@ class Processor(StatesGroup):
     salesperson_language = State()
     salesperson_role = State()
     salesperson_tone = State()
+    context_restriction = State()
     company_name = State()
     company_business = State()
     company_values = State()
@@ -175,13 +176,33 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     salesperson_name = message.text
     await state.update_data(salesperson_name=salesperson_name)
     await state.set_state(Processor.salesperson_language)
+
+    keyboard = await create_language_keyboard()
+
     await message.answer(
         "<b>Please choose the bot's language below: </b>\nEnglish – use only English\nDynamic – use the user's language",
+        reply_markup=keyboard,
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@form_router.message(Processor.salesperson_language)
+async def process_salesperson_language(message: Message, state: FSMContext) -> None:
+    salesperson_language = message.text
+
+    await state.update_data(salesperson_language=salesperson_language)
+    await state.update_data(
+        salesperson_language_instruction=get_language_instruction(salesperson_language)
+    )
+
+    await state.set_state(Processor.context_restriction)
+    await message.answer(
+        "<b>Should the bot be restricted by the context oly, or can it use ChatGPT knowledge as well: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="English"),
-                    KeyboardButton(text="Dynamic"),
+                    KeyboardButton(text="Context only"),
+                    KeyboardButton(text="ChatGPT knowledge"),
                 ],
             ],
             resize_keyboard=True,
@@ -190,14 +211,17 @@ async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     )
 
 
-@form_router.message(Processor.salesperson_language)
-async def process_salesperson_language(message: Message, state: FSMContext) -> None:
-    salesperson_language = message.text
-    
-    await state.update_data(salesperson_language=salesperson_language)
-    await state.update_data(
-        salesperson_language_instruction=get_language_instruction(salesperson_language)
-    )
+context_temperature = 0.0
+
+
+@form_router.message(Processor.context_restriction)
+async def process_context_restriction(message: Message, state: FSMContext) -> None:
+    global context_temperature
+
+    context_restriction = message.text
+    context_temperature = 0.0 if context_restriction == "Context only" else 0.8
+
+    await state.update_data(context_restriction=context_restriction)
 
     await state.set_state(Processor.salesperson_role)
     await message.answer(
@@ -357,43 +381,6 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
 async def process_conversation_purpose(message: Message, state: FSMContext) -> None:
     conversation_purpose = message.text
     await state.update_data(conversation_purpose=conversation_purpose)
-    await state.set_state(Processor.conversation_type)
-    await message.answer(
-        "<b>Please enter the conversation type or choose one below: </b>",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Telegram Chat"),
-                    KeyboardButton(text="Call"),
-                    KeyboardButton(text="Email"),
-                    KeyboardButton(text="Meeting"),
-                ],
-            ],
-            resize_keyboard=True,
-        ),
-        parse_mode=ParseMode.HTML,
-    )
-
-
-@form_router.message(Processor.conversation_type)
-async def process_conversation_type(message: Message, state: FSMContext) -> None:
-    conversation_type = message.text
-    data = await state.update_data(conversation_type=conversation_type)
-    await state.set_state(Processor.conversation_language)
-    await show_summary(message=message, data=data, keyboard=ReplyKeyboardRemove())
-
-    keyboard = await create_language_keyboard()
-
-    await message.answer(
-        "Please, choose conversation language:",
-        reply_markup=keyboard,
-    )
-
-
-@form_router.message(Processor.conversation_language)
-async def process_conversation_language(message: Message, state: FSMContext) -> None:
-    conversation_language = message.text
-    data = await state.update_data(conversation_language=conversation_language)
     await state.set_state(Processor.salesperson_response_size)
 
     keyboard = await create_salesperson_response_size()
@@ -405,7 +392,9 @@ async def process_conversation_language(message: Message, state: FSMContext) -> 
 
 
 @form_router.message(Processor.salesperson_response_size)
-async def process_salesperson_response_size(message: Message, state: FSMContext) -> None:
+async def process_salesperson_response_size(
+    message: Message, state: FSMContext
+) -> None:
     selected_size = message.text
     if selected_size == "SMALL":
         salesperson_response_size = SalesBotResponseSize.SMALL.value
@@ -589,7 +578,6 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             "Help to find information what they are looking for.",
         ),
         conversation_history=[],
-        conversation_type=data.get("conversation_type", "call"),
         conversation_stage=(
             "Introduction: Start the conversation by introducing yourself and your company.",
             "Be polite and respectful while keeping the tone of the conversation professional.",
@@ -598,13 +586,11 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
         file_type=data.get("is_file", False),
         path=data.get("path", ""),
         url_loading_type=data.get("url_process", "Loader"),
-        salesperson_response_size=data.get(
-            "salesperson_response_size", "Medium"
-        ),
+        salesperson_response_size=data.get("salesperson_response_size", "Medium"),
     )
 
     user_bots[user_id] = SalesGPT.from_llm(
-        ChatOpenAI(temperature=0.8, model="gpt-4"),
+        ChatOpenAI(temperature=context_temperature, model="gpt-4"),
         True,
         **args,
     )
@@ -689,7 +675,6 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                     "Help to find information what they are looking for.",
                 ),
                 conversation_history=[],
-                conversation_type=data.get("conversation_type", "call"),
                 conversation_stage=(
                     "Introduction: Start the conversation by introducing yourself and your company.",
                     "Be polite and respectful while keeping the tone of the conversation professional.",
@@ -704,7 +689,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
             )
 
             user_bots[user_id] = SalesGPT.from_llm(
-                ChatOpenAI(temperature=0.8), True, **args
+                ChatOpenAI(temperature=context_temperature), True, **args
             )
 
             user_bots[user_id].seed_agent()
@@ -806,6 +791,7 @@ async def show_summary(
             "Respond to the prospect's inquiries in a straightforward manner without leaning too much towards any specific emotion or style."
         ),
     )
+    context_restriction = data.get("context_restriction", "Context only")
     company_name = data.get("company_name", "Reply")
     company_business = data.get(
         "company_business",
@@ -818,7 +804,6 @@ async def show_summary(
     conversation_purpose = data.get(
         "conversation_purpose", "Help to find information what they are looking for."
     )
-    conversation_type = data.get("conversation_type", "Telegram chat")
 
     text = f"""
         Your bot has been created with the following settings: 
@@ -827,10 +812,10 @@ async def show_summary(
         Chatbot role: {salesperson_role} 
         Chatbot tone: {salesperson_tone} 
         Company name: {company_name}
+        Context restricted: {context_restriction}
         Company business: {company_business}
         Company values: {company_values}
-        Conversation purpose: {conversation_purpose}
-        Conversation type: {conversation_type}"""
+        Conversation purpose: {conversation_purpose}"""
 
     await message.answer(text=text, reply_markup=keyboard)
 
@@ -894,7 +879,7 @@ async def create_language_keyboard():
         keyboard=[
             [
                 KeyboardButton(text="English"),
-                KeyboardButton(text="Another language"),
+                KeyboardButton(text="Dynamic"),
             ],
         ],
         resize_keyboard=True,
@@ -915,4 +900,3 @@ async def create_salesperson_response_size():
         ],
         resize_keyboard=True,
     )
-
