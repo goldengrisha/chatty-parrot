@@ -578,7 +578,6 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
             "Help to find information what they are looking for.",
         ),
         conversation_history=[],
-        conversation_type=data.get("conversation_type", "call"),
         conversation_stage=(
             "Introduction: Start the conversation by introducing yourself and your company.",
             "Be polite and respectful while keeping the tone of the conversation professional.",
@@ -676,7 +675,6 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
                     "Help to find information what they are looking for.",
                 ),
                 conversation_history=[],
-                conversation_type=data.get("conversation_type", "call"),
                 conversation_stage=(
                     "Introduction: Start the conversation by introducing yourself and your company.",
                     "Be polite and respectful while keeping the tone of the conversation professional.",
@@ -806,7 +804,6 @@ async def show_summary(
     conversation_purpose = data.get(
         "conversation_purpose", "Help to find information what they are looking for."
     )
-    conversation_type = data.get("conversation_type", "Telegram chat")
 
     text = f"""
         Your bot has been created with the following settings: 
@@ -818,8 +815,7 @@ async def show_summary(
         Context restricted: {context_restriction}
         Company business: {company_business}
         Company values: {company_values}
-        Conversation purpose: {conversation_purpose}
-        Conversation type: {conversation_type}"""
+        Conversation purpose: {conversation_purpose}"""
 
     await message.answer(text=text, reply_markup=keyboard)
 
