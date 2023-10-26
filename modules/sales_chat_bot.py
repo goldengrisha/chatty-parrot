@@ -363,7 +363,7 @@ class SalesConversationOutputParser(AgentOutputParser):
 
 
 SALES_AGENT_TOOLS_PROMPT = """
-Before doing something, translate question to English.
+The first thing you must do is translate the user's question to English.
 Try to force the user to achieve your goal, your main goal is: {conversation_purpose}.
 Never forget your name is {salesperson_name}. You work as a {salesperson_role}.
 You work at company named {company_name}. {company_name}'s business is the following: {company_business}.
@@ -403,6 +403,7 @@ Observation: the result of the action
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
 Ensure that responses are context-specific and do not exceed {salesperson_response_size} words in length.
 Only generate one response at a time and act as {salesperson_name} only!
+You must strictly follow the language rules: {salesperson_language_instruction}.
 Answer I don't know if don't know how to answer or you are confused by the question.
 
 Begin!
@@ -438,6 +439,11 @@ class SalesGPT(Chain):
     }
 
     salesperson_name: str = "Ted Lasso"
+    salesperson_language: str = "English"
+    salesperson_language_instruction: str = (
+        "Everything you say must be in English and English only."
+        "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+    )
     salesperson_role: str = "Business Development Representative"
     salesperson_tone: str = (
         "Maintain a balanced and unbiased tone."
@@ -498,16 +504,16 @@ class SalesGPT(Chain):
 
     def _call(self, inputs: Dict[str, Any]) -> None:
         """Run one step of the sales agent."""
-        translator = LanguageTranslationTool()
 
         self.determine_conversation_stage()
-        self.determine_language()
 
         ai_message = self.sales_agent_executor.run(  # type: ignore
             input="",
             conversation_stage=self.current_conversation_stage,
             conversation_history="\n".join(self.conversation_history),
             salesperson_name=self.salesperson_name,
+            salesperson_language=self.salesperson_language,
+            salesperson_language_instruction=self.salesperson_language_instruction,
             salesperson_role=self.salesperson_role,
             salesperson_tone=self.salesperson_tone,
             company_name=self.company_name,
@@ -520,9 +526,13 @@ class SalesGPT(Chain):
         if "<END_OF_TURN>" not in ai_message:
             ai_message += " <END_OF_TURN>"
 
-        ai_message = translator.run(
-            ai_message.rstrip("<END_OF_TURN>"), self.current_language
-        )
+        if self.salesperson_language != "English":
+            translator = LanguageTranslationTool()
+            self.determine_language()
+
+            ai_message = translator.run(
+                ai_message.rstrip("<END_OF_TURN>"), self.current_language
+            )
 
         agent_name = self.salesperson_name
         ai_message = agent_name + ": " + ai_message
@@ -575,6 +585,8 @@ class SalesGPT(Chain):
                 "input",
                 "intermediate_steps",
                 "salesperson_name",
+                "salesperson_language",
+                "salesperson_language_instruction",
                 "salesperson_role",
                 "salesperson_tone",
                 "company_name",

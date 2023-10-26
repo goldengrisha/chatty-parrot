@@ -84,6 +84,38 @@ def get_tone_instruction(salesperson_tone):
     )
 
 
+def get_language_instruction(salesperson_language):
+    """
+    Returns a detailed and strict instruction for the given salesperson language.
+
+    Parameters:
+    - salesperson_language (str): The language of the salesperson.
+
+    Returns:
+    - str: Detailed instruction for the given language.
+    """
+
+    tone_instructions = {
+        "English": (
+            "Everything you say must be in English and English only."
+            "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+        ),
+        "Dynamic": (
+            "You must follow the user's language and answer in the same language."
+            "You are not allowed to answer in any other language except for the language the user speaks to you."
+            "The user must be able to understand you at all times so be sure to use the same language as they do."
+        ),
+    }
+
+    return tone_instructions.get(
+        salesperson_language,
+        (
+            "Everything you say must be in English and English only."
+            "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+        ),
+    )
+
+
 class Processor(StatesGroup):
     chat_bot_type = State()
     is_with_memory = State()
@@ -97,6 +129,7 @@ class Processor(StatesGroup):
     processing_url = State()
 
     salesperson_name = State()
+    salesperson_language = State()
     salesperson_role = State()
     salesperson_tone = State()
     company_name = State()
@@ -118,7 +151,7 @@ async def command_start(message: Message, state: FSMContext) -> None:
     await state.set_state(Processor.salesperson_name)
     await message.answer("Hi, let's configure the bot! 👋")
     await message.answer(
-        "<b>Please enter the bot's name or choose one below: </b>\n(1/8)",
+        "<b>Please enter the bot's name or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -138,9 +171,34 @@ async def command_start(message: Message, state: FSMContext) -> None:
 async def process_salesperson_name(message: Message, state: FSMContext) -> None:
     salesperson_name = message.text
     await state.update_data(salesperson_name=salesperson_name)
+    await state.set_state(Processor.salesperson_language)
+    await message.answer(
+        "<b>Please choose the bot's language below: </b>\nEnglish – use only English\nDynamic – use the user's language",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="English"),
+                    KeyboardButton(text="Dynamic"),
+                ],
+            ],
+            resize_keyboard=True,
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@form_router.message(Processor.salesperson_language)
+async def process_salesperson_language(message: Message, state: FSMContext) -> None:
+    salesperson_language = message.text
+    
+    await state.update_data(salesperson_language=salesperson_language)
+    await state.update_data(
+        salesperson_language_instruction=get_language_instruction(salesperson_language)
+    )
+
     await state.set_state(Processor.salesperson_role)
     await message.answer(
-        "<b>Please enter the bot's role or choose one below: </b>\n(2/8)",
+        "<b>Please enter the bot's role or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -162,7 +220,7 @@ async def process_salesperson_role(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_role=salesperson_role)
     await state.set_state(Processor.salesperson_tone)
     await message.answer(
-        "<b>Please choose the bot's tone: </b>\n(3/8)",
+        "<b>Please choose the bot's tone: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -186,7 +244,7 @@ async def process_salesperson_tone(message: Message, state: FSMContext) -> None:
     await state.update_data(salesperson_tone=get_tone_instruction(salesperson_tone))
     await state.set_state(Processor.company_name)
     await message.answer(
-        "<b>Please enter the company name or choose one below: </b>\n(4/8)",
+        "<b>Please enter the company name or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -208,7 +266,7 @@ async def process_company_name(message: Message, state: FSMContext) -> None:
     await state.update_data(company_name=company_name)
     await state.set_state(Processor.company_business)
     await message.answer(
-        "<b>Please enter the company's business description or choose one below: </b>\n(5/8)",
+        "<b>Please enter the company's business description or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -238,7 +296,7 @@ async def process_company_business(message: Message, state: FSMContext) -> None:
     await state.update_data(company_business=company_business)
     await state.set_state(Processor.company_values)
     await message.answer(
-        "<b>Please enter the company's core values and mission or choose below: </b>\n(6/8)",
+        "<b>Please enter the company's core values and mission or choose below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -268,7 +326,7 @@ async def process_company_values(message: Message, state: FSMContext) -> None:
     await state.update_data(company_values=company_values)
     await state.set_state(Processor.conversation_purpose)
     await message.answer(
-        "<b>Please describe the purpose of this conversation or choose one below: </b>\n(7/8)",
+        "<b>Please describe the purpose of this conversation or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -298,7 +356,7 @@ async def process_conversation_purpose(message: Message, state: FSMContext) -> N
     await state.update_data(conversation_purpose=conversation_purpose)
     await state.set_state(Processor.conversation_type)
     await message.answer(
-        "<b>Please enter the conversation type or choose one below: </b>\n(8/8)",
+        "<b>Please enter the conversation type or choose one below: </b>",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -468,6 +526,7 @@ async def process_processing_url(message: Message, state: FSMContext) -> None:
 
     args = dict(
         salesperson_name=data.get("salesperson_name", "John"),
+        salesperson_language=data.get("salesperson_language", "English"),
         salesperson_role=data.get(
             "salesperson_role", "Business Development Representative"
         ),
@@ -564,6 +623,7 @@ async def process_waiting_for_file(message: Message, state: FSMContext) -> None:
         if user_id not in user_bots:
             args = dict(
                 salesperson_name=data.get("salesperson_name", "John"),
+                salesperson_language=data.get("salesperson_language", "English"),
                 salesperson_role=data.get(
                     "salesperson_role", "Business Development Representative"
                 ),
@@ -691,6 +751,7 @@ async def show_summary(
     Show a summary of the bot's configuration to the user.
     """
     salesperson_name = data.get("salesperson_name", "Ted Lasso")
+    salesperson_language = data.get("salesperson_language", "English")
     salesperson_role = data.get(
         "salesperson_role", "Business Development Representative"
     )
@@ -719,6 +780,7 @@ async def show_summary(
     text = f"""
         Your bot has been created with the following settings: 
         Chatbot name: {salesperson_name} 
+        Chatbot language: {salesperson_language} 
         Chatbot role: {salesperson_role} 
         Chatbot tone: {salesperson_tone} 
         Company name: {company_name}
