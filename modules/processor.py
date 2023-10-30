@@ -98,21 +98,21 @@ def get_language_instruction(salesperson_language):
 
     tone_instructions = {
         "English": (
-            "Everything you say must be in English and English only."
+            "Everything you say must be in English and English only. "
             "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
         ),
         "Dynamic": (
-            "You must follow the user's language and answer in the same language."
-            "You are not allowed to answer in any other language except for the language the user speaks to you."
-            "The user must be able to understand you at all times so be sure to use the same language as they do."
+            "Everything you say must be in the same language like user question was only. "
+            "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
         ),
     }
 
     return tone_instructions.get(
         salesperson_language,
         (
-            "Everything you say must be in English and English only."
-            "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+            "Everything you say must be in English and English only! "
+            "No other languages are allowed for you. If the user speaks different language, you must still answer in English!!!"
+
         ),
     )
 
