@@ -344,7 +344,6 @@ class SalesConversationOutputParser(AgentOutputParser):
             print("TEXT")
             print(text)
             print("-------")
-        print("ai_prefix::", self.ai_prefix)
 
         # todo: make this more robust because the name can be in output
         if f"{self.ai_prefix}:" in text or f"{self.ai_prefix}" in text:
@@ -353,7 +352,6 @@ class SalesConversationOutputParser(AgentOutputParser):
                 text,
             )
         regex = r"Action: (.*?)[\n]*Action Input: (.*)"
-        print("regex::", regex)
         match = re.search(regex, text)
         if not match:
             ## TODO - this is not entirely reliable, sometimes results in an error.
@@ -363,7 +361,6 @@ class SalesConversationOutputParser(AgentOutputParser):
                 },
                 text,
             )
-            # raise OutputParserException(f"Could not parse LLM output: `{text}`")
         action = match.group(1)
         action_input = match.group(2)
         return AgentAction(
