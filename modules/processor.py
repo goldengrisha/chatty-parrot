@@ -103,7 +103,7 @@ def get_language_instruction(salesperson_language):
         ),
         "Dynamic": (
             "Everything you say must be in the same language like user question was only. "
-            "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+            "No other languages are allowed for you. If the user speaks different language, you must still answer in user language."
         ),
     }
 

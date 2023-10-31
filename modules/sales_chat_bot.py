@@ -339,23 +339,55 @@ class SalesConversationOutputParser(AgentOutputParser):
     def get_format_instructions(self) -> str:
         return FORMAT_INSTRUCTIONS
 
+    # def parse(self, text: str) -> Union[AgentAction, AgentFinish]:
+    #     if self.verbose:
+    #         print("TEXT")
+    #         print(text)
+    #         print("-------")
+    #
+    #     regex = r"Action: (.*?)[\n]*Action Input: (.*)"
+    #     match = re.search(regex, text)
+    #
+    #     if not match:
+    #         return AgentFinish(
+    #             {"output": text.split(f"{self.ai_prefix}:")[-1].strip()}, text
+    #         )
+    #
+    #     action = match.group(1)
+    #     action_input = match.group(2)
+    #     return AgentAction(action.strip(), action_input.strip(" ").strip('"'), text)
+
     def parse(self, text: str) -> Union[AgentAction, AgentFinish]:
         if self.verbose:
             print("TEXT")
             print(text)
             print("-------")
+        print("ai_prefix::", self.ai_prefix)
 
-        regex = r"Action: (.*?)[\n]*Action Input: (.*)"
-        match = re.search(regex, text)
-
-        if not match:
+        # todo: make this more robust because the name can be in output
+        if f"{self.ai_prefix}:" in text or f"{self.ai_prefix}" in text:
             return AgentFinish(
-                {"output": text.split(f"{self.ai_prefix}:")[-1].strip()}, text
+                {"output": text.split(f"{self.ai_prefix}:")[-1].strip()},
+                text,
             )
-
+        regex = r"Action: (.*?)[\n]*Action Input: (.*)"
+        print("regex::", regex)
+        match = re.search(regex, text)
+        if not match:
+            ## TODO - this is not entirely reliable, sometimes results in an error.
+            return AgentFinish(
+                {
+                    "output": "I apologize, I was unable to find the answer to your question. Is there anything else I can help with?"
+                },
+                text,
+            )
+            # raise OutputParserException(f"Could not parse LLM output: `{text}`")
         action = match.group(1)
         action_input = match.group(2)
-        return AgentAction(action.strip(), action_input.strip(" ").strip('"'), text)
+        return AgentAction(
+            action.strip(), action_input.strip(" ").strip('"'), text
+        )
+
 
     @property
     def _type(self) -> str:
@@ -400,11 +432,16 @@ Action Input: the input to the action, always a simple string input
 Observation: the result of the action
 ```
 
+If the result of the action is "I don't know." or "Sorry I don't know", then you have to say that to the user as described in the next sentence.
+When you have a response to say to the Human, or if you do not need to use a tool, or if tool did not help, you MUST use the format:
+```
+Thought: Do I need to use a tool? No
+{salesperson_name}: [your response here, if previously used a tool, rephrase latest observation, if unable to find the answer, say I don't know]
+```
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
 Ensure that responses are context-specific and do not exceed {salesperson_response_size} words in length.
 Only generate one response at a time and act as {salesperson_name} only!
 You must strictly follow the language rules: {salesperson_language_instruction}.
-Answer I don't know if don't know how to answer or you are confused by the question.
 
 Begin!
 
@@ -414,8 +451,6 @@ Previous conversation history:
 {salesperson_name}:
 {agent_scratchpad}
 """
-
-from langchain.chains import SequentialChain
 
 
 class SalesGPT(Chain):
@@ -442,7 +477,7 @@ class SalesGPT(Chain):
     salesperson_language: str = "English"
     salesperson_language_instruction: str = (
         f"Everything you say must be in {salesperson_language}. "
-        "No other languages are allowed for you. If the user speaks different language, you must still answer in English."
+        f"No other languages are allowed for you. If the user speaks different language, you must still answer in {salesperson_language}."
     )
     salesperson_role: str = "Business Development Representative"
     salesperson_tone: str = (
@@ -494,13 +529,14 @@ class SalesGPT(Chain):
         self.salesperson_language_instruction = (
             f"Everything you say must be in {self.salesperson_language}. "
             "No other languages are allowed for you. "
-            "If the user speaks different language, you must still answer in English."
+            f"If the user speaks different language, you must still answer in {self.salesperson_language}."
         )
 
     def human_step(self, human_input):
         human_input = "User: " + human_input + " <END_OF_TURN>"
         self.conversation_history.append(human_input)
         if self.salesperson_language != "English":
+            translator = LanguageTranslationTool()
             self.determine_language()
         print(f"Determined language: {self.salesperson_language}")
 
@@ -599,7 +635,8 @@ class SalesGPT(Chain):
         # WARNING: this output parser is NOT reliable yet
         ## It makes assumptions about output from LLM which can break and throw an error
         output_parser = SalesConversationOutputParser(
-            ai_prefix=kwargs["salesperson_name"]
+            ai_prefix=kwargs["salesperson_name"],
+            verbose=verbose,
         )
         sales_agent_with_tools = LLMSingleActionAgent(
             llm_chain=llm_chain,
