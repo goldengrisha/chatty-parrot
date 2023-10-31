@@ -339,24 +339,6 @@ class SalesConversationOutputParser(AgentOutputParser):
     def get_format_instructions(self) -> str:
         return FORMAT_INSTRUCTIONS
 
-    # def parse(self, text: str) -> Union[AgentAction, AgentFinish]:
-    #     if self.verbose:
-    #         print("TEXT")
-    #         print(text)
-    #         print("-------")
-    #
-    #     regex = r"Action: (.*?)[\n]*Action Input: (.*)"
-    #     match = re.search(regex, text)
-    #
-    #     if not match:
-    #         return AgentFinish(
-    #             {"output": text.split(f"{self.ai_prefix}:")[-1].strip()}, text
-    #         )
-    #
-    #     action = match.group(1)
-    #     action_input = match.group(2)
-    #     return AgentAction(action.strip(), action_input.strip(" ").strip('"'), text)
-
     def parse(self, text: str) -> Union[AgentAction, AgentFinish]:
         if self.verbose:
             print("TEXT")
@@ -404,7 +386,7 @@ Rules of your tone: {salesperson_tone}
 
 Keep your responses in short length to retain the user's attention. 
 Responses never must be longer than {salesperson_response_size} words. Never produce lists, just answers.
-Start the conversation by just a greeting and how is the prospect doing without pitching in your first turn.
+Start the conversation only by greeting from {salesperson_name} without pitching in your first turn.
 When the conversation is over, output <END_OF_CALL>
 Always think about at which conversation stage you are at before answering:
 
