@@ -363,10 +363,7 @@ class SalesConversationOutputParser(AgentOutputParser):
             )
         action = match.group(1)
         action_input = match.group(2)
-        return AgentAction(
-            action.strip(), action_input.strip(" ").strip('"'), text
-        )
-
+        return AgentAction(action.strip(), action_input.strip(" ").strip('"'), text)
 
     @property
     def _type(self) -> str:
@@ -399,10 +396,11 @@ Always think about at which conversation stage you are at before answering:
 TOOLS:
 ------
 
-{salesperson_name} has access to the following tools:
+{salesperson_name} has access to the following tools only:
 
 {tools}
-To use a tool, you must use the following format:
+No other tools are available.
+To use a tool, you must use the following format and the following format only (between the triple ` symbols):
 
 ```
 Thought: Do I need to use a tool? Yes
@@ -411,11 +409,13 @@ Action Input: the input to the action, always a simple string input
 Observation: the result of the action
 ```
 
+You must only use this format to use the tools. In any other situation you are forbidden to use this format.
+
 If the result of the action is "I don't know." or "Sorry I don't know", then you have to say that to the user as described in the next sentence.
-When you have a response to say to the Human, or if you do not need to use a tool, or if tool did not help, you MUST use the format:
+When you have a response to say to the Human, or if you do not need to use a tool, or if the tool did not help, you MUST use the format:
 ```
 Thought: Do I need to use a tool? No
-{salesperson_name}: [your response here, if previously used a tool, rephrase latest observation, if unable to find the answer, say I don't know]
+{salesperson_name}: [your response here: if previously used a tool then rephrase latest observation; if unable to find the answer then say I don't know]
 ```
 You must respond according to the previous conversation history. You should respond according to the stage of the conversation you are at.
 Ensure that responses are context-specific and do not exceed {salesperson_response_size} words in length.
