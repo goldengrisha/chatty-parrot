@@ -1,4 +1,4 @@
-## Reply.io ChatBot
+## ChatBot
 
 ### Description
 
